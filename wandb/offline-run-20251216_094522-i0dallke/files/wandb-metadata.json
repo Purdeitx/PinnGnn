@@ -1,0 +1,54 @@
+{
+    "os": "Windows-10-10.0.26200-SP0",
+    "python": "3.10.19",
+    "heartbeatAt": "2025-12-16T08:45:22.920536",
+    "startedAt": "2025-12-16T08:45:22.404417",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "--model_type",
+        "simple",
+        "--epochs",
+        "500",
+        "--refine",
+        "3"
+    ],
+    "state": "running",
+    "program": "E:\\00.Antigravity\\PinnGNN\\train.py",
+    "codePathLocal": "train.py",
+    "codePath": "train.py",
+    "host": "DESKTOP-2GCFM22",
+    "username": "paux_",
+    "executable": "C:\\Users\\paux_\\anaconda3\\envs\\PinnGnn\\python.exe",
+    "cpu_count": 8,
+    "cpu_count_logical": 16,
+    "cpu_freq": {
+        "current": 2904.0,
+        "min": 0.0,
+        "max": 2904.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2904.0,
+            "min": 0.0,
+            "max": 2904.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 931.5099792480469,
+            "used": 67.52677536010742
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 2060 SUPER",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 2060 SUPER",
+            "memory_total": 8589934592
+        }
+    ],
+    "memory": {
+        "total": 31.86974334716797
+    }
+}
