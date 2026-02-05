@@ -1,4 +1,5 @@
 import torch
+import matplotlib.pyplot as plt
 from pytorch_lightning.callbacks import Callback
 
 class GradientMonitor(Callback):
@@ -33,3 +34,29 @@ class GradientMonitor(Callback):
         # Alert for exploding gradients
         if total_grad_norm > 1e4 and self.verbose:
             print(f"\n⚠️ CRITICAL: Exploding gradients! Total Norm: {total_grad_norm:.2e}")
+
+
+class LossPlotterCallback(Callback):
+    def __init__(self, model_name="PINN"):
+        super().__init__()
+        self.model_name = model_name
+        self.losses = {"train_loss": [], "loss_pde": [], "loss_bc": [], "val_loss": []}
+        self.fig = None  
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        logs = trainer.callback_metrics
+        for key in ["train_loss", "loss_pde", "loss_bc"]:
+            if key in logs:
+                self.losses[key].append(logs[key].item())
+
+    def on_validation_epoch_end(self, trainer, pl_module):
+        logs = trainer.callback_metrics
+        if "val_loss" in logs:
+            self.losses["val_loss"].append(logs["val_loss"].item())
+
+    def on_train_end(self, trainer, pl_module):
+        from utils.plotting import plot_loss
+        import matplotlib.pyplot as plt
+        
+        self.fig = plot_loss(self.losses, model_name=self.model_name)
+        plt.show()

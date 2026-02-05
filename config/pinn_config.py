@@ -1,8 +1,10 @@
 from .common_config import COMMON_CONFIG
+import torch.nn as nn
 
 PINN_CONFIG = {
     'hidden_dim': 64,
     'num_layers': 4,
+    'activation': nn.Tanh(),
     'epochs': COMMON_CONFIG['epochs'],
     'lr': COMMON_CONFIG['lr'],
     'lambda_bc': COMMON_CONFIG['lambda_bc'],

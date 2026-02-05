@@ -5,7 +5,9 @@ from skfem.models.poisson import laplace, mass
 from config.physics import PoissonPhysics
 from skfem.helpers import dot, grad
 
-def get_problem(nx=4, ny=4, porder=1, source_type='sine', mesh_type='tri', scale=1.0, custom_mesh=None):
+from utils import geometry
+
+def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='tri', scale=1.0, custom_mesh=None):
     """
     Defines a Poisson problem on a Unit Square:
     - Delta u = f
@@ -26,9 +28,13 @@ def get_problem(nx=4, ny=4, porder=1, source_type='sine', mesh_type='tri', scale
     # 1. Mesh: Structured Grid
     if custom_mesh is not None:
         m = custom_mesh
+    elif hasattr(geometry, 'get_skfem_mesh'): 
+        m = geometry.get_skfem_mesh(nx, ny, mesh_type)
     else:
-        x = np.linspace(0, 1, nx + 1)
-        y = np.linspace(0, 1, ny + 1)
+        x0, x1 = geometry.x_range
+        y0, y1 = geometry.y_range
+        x = np.linspace(x0, x1, nx + 1)
+        y = np.linspace(y0, y1, ny + 1)
         if mesh_type == 'tri':
             m = MeshTri.init_tensor(x, y)
         else:
@@ -44,13 +50,32 @@ def get_problem(nx=4, ny=4, porder=1, source_type='sine', mesh_type='tri', scale
 
     basis = Basis(m, e)
     
-# 3. Física y Assembly
+    # 3. Física y Assembly
     phys = PoissonPhysics(source_type=source_type, scale=scale)
     K = asm(laplace, basis)
     
+
+    '''
+    # Ejemplo de forma lineal para el término fuente f(x):
     @LinearForm
     def F_form(v, w):
-        return phys.source_term(w.x[0], w.x[1], library='numpy') * v
+        if phys.source_type == 'sine':
+            # f = scale * 2 * pi^2 * sin(pi*x) * sin(pi*y)
+            f_val = phys.scale * 2 * (np.pi**2) * np.sin(np.pi * w.x[0]) * np.sin(np.pi * w.x[1])
+        else:
+            f_val = phys.scale 
+        return f_val * v
+    '''
+    @LinearForm
+    def F_form(v, w):
+        original_shape = w.x[0].shape 
+        x_flat = w.x[0].flatten()
+        y_flat = w.x[1].flatten()
+        x_input = np.stack([x_flat, y_flat], axis=-1)
+        f_val = phys.source_term(x_input)
+        f_val = f_val.reshape(original_shape)
+        
+        return f_val * v
     
     F = asm(F_form, basis)
 
@@ -59,13 +84,18 @@ def get_problem(nx=4, ny=4, porder=1, source_type='sine', mesh_type='tri', scale
     D = dofs.all()
     u = solve(*condense(K, F, D=D))
 
+    x_dofs = basis.doflocs.T
+    u_exact = phys.exact_solution(x_dofs)
+    if u_exact is not None:
+        u_exact = u_exact.flatten()
+
     # 5. Output Unificado
     return {
         "mesh": m,
         "basis": basis,
         "u": u,
-        "u_exact": phys.exact_solution(basis.doflocs[0], basis.doflocs[1]),
-        "doflocs": basis.doflocs.T,
+        "u_exact": u_exact,
+        "doflocs": x_dofs,
         "boundary_indices": D,
         "interior_indices": basis.complement_dofs(D)
     }

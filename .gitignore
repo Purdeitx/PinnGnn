@@ -1,0 +1,21 @@
+# PyTorch Lightning logs and checkpoints
+lightning_logs/
+checkpoints/
+
+# Outputs
+outputs/
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Environments (if you have them inside the folder)
+venv/
+env/
+.env
+
+# Data and large FEM outputs (optional but recommended)
+*.mat
+*.npz
