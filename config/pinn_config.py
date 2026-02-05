@@ -1,15 +1,15 @@
 from .common_config import COMMON_CONFIG
-import torch.nn as nn
 
 PINN_CONFIG = {
-    'hidden_dim': 64,
-    'num_layers': 4,
-    'activation': nn.Tanh(),
+    'hidden_dim': COMMON_CONFIG['hidden_dim'],
+    'num_layers': COMMON_CONFIG['num_layers'],
+    'activation': COMMON_CONFIG['activation'],
     'epochs': COMMON_CONFIG['epochs'],
     'lr': COMMON_CONFIG['lr'],
     'lambda_bc': COMMON_CONFIG['lambda_bc'],
-    'use_fem_for_train': COMMON_CONFIG['use_fem_for_train'],
-    'use_fem_for_test': COMMON_CONFIG['use_fem_for_test'],
-    'n_collocation': 2000,
-    'n_boundary': 500
+    'use_fem_for_train': False,
+    'use_fem_for_test': False,
+    'n_train': 2000,
+    'n_test': 2000,
+    'n_bc': 500
 }

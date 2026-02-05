@@ -27,6 +27,9 @@ class PoissonPhysics:
 
     def exact_solution(self, x):
         """u(x) analítica (Numpy)"""
+        if torch.is_tensor(x):
+            x = x.detach().cpu().numpy()
+            
         if self.source_type == 'sine':
             ix, iy = x[:, 0:1], x[:, 1:2]
             return self.scale * np.sin(np.pi * ix) * np.sin(np.pi * iy)

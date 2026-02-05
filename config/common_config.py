@@ -1,4 +1,5 @@
 # Common Configuration for all models
+
 COMMON_CONFIG = {
     'pde_type': 'Poisson', # For folder: PDE_Poisson
     'project_name': 'out', # User project folder
@@ -10,5 +11,8 @@ COMMON_CONFIG = {
     'lambda_bc': 100.0,    # Weight for boundary condition loss
     'epochs': 500,
     'lr': 1e-3,
+    'hidden_dim': 64,
+    'num_layers': 4,
+    'activation': 'tanh'
 }
 

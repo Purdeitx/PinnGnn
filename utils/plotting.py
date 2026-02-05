@@ -150,27 +150,43 @@ def plot_fem_mesh(prob, title="FEM Mesh Geometry"):
     plt.tight_layout()
     return fig
 
+
 def plot_comparison_with_pinn(pinn, u_ref, x_coords, ref_name="FEM"):
-    """Inferencia y ploteo comparativo unificado."""
+    """Inferencia y ploteo comparativo unificado (Versión Robusta)."""
     pinn.eval()
+    device = next(pinn.parameters()).device 
+    
+    if torch.is_tensor(x_coords):
+        x_plot = x_coords.detach().cpu().numpy()
+        coords_torch = x_coords.detach().clone().float().to(device)
+    else:
+        x_plot = x_coords
+        coords_torch = torch.from_numpy(x_coords).float().to(device)
+
+    if torch.is_tensor(u_ref):
+        u_ref_plot = u_ref.detach().cpu().numpy().flatten()
+    else:
+        u_ref_plot = u_ref.flatten()
+
     with torch.no_grad():
-        coords_torch = torch.tensor(x_coords, dtype=torch.float32).to(pinn.device)
-        u_pinn = pinn(coords_torch).cpu().numpy().flatten()
+        u_pinn_plot = pinn(coords_torch).cpu().numpy().flatten()
 
     fig, ax = plt.subplots(1, 3, figsize=(18, 5))
-    vmin, vmax = min(u_ref.min(), u_pinn.min()), max(u_ref.max(), u_pinn.max())
-    levels = np.linspace(vmin, vmax, 25)
-    error_abs = np.abs(u_ref - u_pinn)
     
-    sc1 = ax[0].tricontourf(x_coords[:,0], x_coords[:,1], u_ref, levels=levels, cmap='viridis')
+    vmin = min(u_ref_plot.min(), u_pinn_plot.min())
+    vmax = max(u_ref_plot.max(), u_pinn_plot.max())
+    levels = np.linspace(vmin, vmax, 25)
+    error_abs = np.abs(u_ref_plot - u_pinn_plot)
+    
+    sc1 = ax[0].tricontourf(x_plot[:,0], x_plot[:,1], u_ref_plot, levels=levels, cmap='viridis')
     ax[0].set_title(f"Reference ({ref_name})")
     plt.colorbar(sc1, ax=ax[0])
     
-    sc2 = ax[1].tricontourf(x_coords[:,0], x_coords[:,1], u_pinn, levels=levels, cmap='viridis')
+    sc2 = ax[1].tricontourf(x_plot[:,0], x_plot[:,1], u_pinn_plot, levels=levels, cmap='viridis')
     ax[1].set_title("PINN Prediction")
     plt.colorbar(sc2, ax=ax[1])
 
-    sc3 = ax[2].tricontourf(x_coords[:,0], x_coords[:,1], error_abs, levels=25, cmap='magma')
+    sc3 = ax[2].tricontourf(x_plot[:,0], x_plot[:,1], error_abs, levels=25, cmap='magma')
     ax[2].set_title(f"Abs. Error (Max: {error_abs.max():.2e})")
     plt.colorbar(sc3, ax=ax[2])
     
@@ -197,3 +213,46 @@ def plot_pinn_strategy(train, bc, test, title="Sampling Strategy"):
     ax.set_title(title)
     ax.legend()
     plt.show()
+
+def plot_error_boxplot(u_exact, u_pred, var_names=None, model_name="PINN"):
+    """
+    Genera un boxplot del error absoluto detectando automáticamente el nº de variables.
+    
+    u_exact, u_pred: arrays de forma (N,) o (N, num_vars)
+    var_names: lista de strings con los nombres (ej: ['u', 'v']). Si es None, usa Var 1, Var 2...
+    """
+    # Asegurar que los datos tengan forma (N, num_vars)
+    if u_exact.ndim == 1:
+        u_exact = u_exact.reshape(-1, 1)
+        u_pred = u_pred.reshape(-1, 1)
+    
+    num_vars = u_exact.shape[1]
+    errors = [np.abs(u_exact[:, i] - u_pred[:, i]) for i in range(num_vars)]
+    
+    # Configurar nombres de las variables
+    if var_names is None:
+        var_names = [f"Var {i+1}" for i in range(num_vars)]
+    elif len(var_names) != num_vars:
+        var_names = [f"Var {i+1}" for i in range(num_vars)]
+
+    fig, ax = plt.subplots(figsize=(2 + 2*num_vars, 7)) # Escala el ancho según nº de vars
+    
+    # Dibujar Boxplot
+    bplot = ax.boxplot(errors, 
+                       patch_artist=True, 
+                       labels=var_names,
+                       medianprops={'color': 'black', 'linewidth': 1.5},
+                       flierprops={'marker': 'o', 'markerfacecolor': 'red', 'markersize': 3, 'alpha': 0.3})
+    
+    # Colores estéticos (puedes añadir más a la lista)
+    colors = ['#add8e6', '#90ee90', '#ffb6c1', '#f0e68c', '#e6e6fa']
+    for patch, color in zip(bplot['boxes'], colors * 10): # El *10 es por si hay muchas vars
+        patch.set_facecolor(color)
+    
+    ax.set_title(f'Distribución del Error Absoluto por Variable ({model_name})')
+    ax.set_ylabel('Error Absoluto $|u_{exact} - u_{pred}|$')
+    ax.set_yscale('log') # Escala logarítmica suele ser mejor para ver errores de PINNs
+    ax.grid(axis='y', linestyle='--', alpha=0.5)
+    
+    plt.tight_layout()
+    return fig

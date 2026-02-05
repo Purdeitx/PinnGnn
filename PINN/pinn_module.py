@@ -4,16 +4,30 @@ import pytorch_lightning as pl
 from pytorch_lightning.utilities import grad_norm
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
+import torch.nn as nn
+
+
+def get_activation(name):
+    """Convierte un string en un objeto de activación de PyTorch."""
+    activations = {
+        'tanh': nn.Tanh(),
+        'relu': nn.ReLU(),
+        'sigmoid': nn.Sigmoid(),
+        'elu': nn.ELU(),
+        'silu': nn.SiLU(),  # Muy recomendada para PINNs
+    }
+    return activations.get(name.lower(), nn.Tanh())
 
 class MLP(nn.Module):
-    def __init__(self, in_features=2, out_features=1, hidden_layers=[64, 64, 64, 64], activation=nn.Tanh()):
+    def __init__(self, in_features=2, out_features=1, hidden_layers=[64, 64, 64, 64], activation='tanh'):
         super().__init__()
+        act_fn = get_activation(activation)
         layers = []
         layers.append(nn.Linear(in_features, hidden_layers[0]))
-        layers.append(activation)
+        layers.append(act_fn)
         for i in range(len(hidden_layers) - 1):
             layers.append(nn.Linear(hidden_layers[i], hidden_layers[i+1]))
-            layers.append(activation)
+            layers.append(act_fn)
         layers.append(nn.Linear(hidden_layers[-1], out_features))
         self.net = nn.Sequential(*layers)
         
@@ -90,9 +104,10 @@ class PINNSystem(pl.LightningModule):
         hidden_dim = self.hparams.get('hidden_dim', 64)
         num_layers = self.hparams.get('num_layers', 4)
         input_dim = self.hparams.get('input_dim', 2)
+        activation = self.hparams.get('activation', 'tanh')
 
         self.model = MLP(in_features=input_dim, out_features=1, 
-                         hidden_layers=[hidden_dim]*num_layers)
+                         hidden_layers=[hidden_dim]*num_layers, activation=activation)
         
         from utils.metrics import calculate_rrmse
         self.rrmse_fn = calculate_rrmse
