@@ -1,15 +1,34 @@
 import numpy as np
 import scipy.sparse as sp
-from skfem import *
+import skfem
 from skfem.models.poisson import laplace, mass
-from config.physics import PoissonPhysics
 from skfem.helpers import dot, grad
 
+try:
+    from skfem.assembly import asm, Basis, LinearForm
+    from skfem.utils import solve, condense
+except ImportError:
+    from skfem import asm, solve, condense, Basis, LinearForm
+
+try:
+    from skfem.mesh import MeshTri, MeshQuad
+except ImportError:
+    from skfem import MeshTri, MeshQuad
+
+try:
+    from skfem.element import (ElementTriP1, ElementTriP2, 
+                                ElementQuad1, ElementQuad2)
+except ImportError:
+    from skfem import (ElementTriP1, ElementTriP2, 
+                        ElementQuad1, ElementQuad2)
+
+# Local modules 
+from config.physics import PoissonPhysics
 from utils import geometry
 
 def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='tri', scale=1.0, custom_mesh=None):
     """
-    Defines a Poisson problem on a Unit Square:
+    Defines a Poisson problem on a geometry:
     - Delta u = f
     u = 0 on boundary
     
@@ -24,23 +43,32 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
     Returns:
         dict: Problem data including matrices and solution.
     """
-    
-    # 1. Mesh: Structured Grid
+    # MESH
     if custom_mesh is not None:
         m = custom_mesh
-    elif hasattr(geometry, 'get_skfem_mesh'): 
-        m = geometry.get_skfem_mesh(nx, ny, mesh_type)
-    else:
-        x0, x1 = geometry.x_range
-        y0, y1 = geometry.y_range
-        x = np.linspace(x0, x1, nx + 1)
-        y = np.linspace(y0, y1, ny + 1)
+        print("Imported custom mesh.")
+    elif geometry.name == "square":
+        x = np.linspace(geometry.x_range[0], geometry.x_range[1], nx + 1)
+        y = np.linspace(geometry.y_range[0], geometry.y_range[1], ny + 1)
+        # m = MeshTri.init_tensor(x, y)
+
         if mesh_type == 'tri':
             m = MeshTri.init_tensor(x, y)
-        else:
+        elif mesh_type == 'quad':
             m = MeshQuad.init_tensor(x, y)
-    
-    # 2. Element and Basis
+        else:
+            raise ValueError(f"Tipo de malla '{mesh_type}' no soportado para Square.")
+    elif geometry.name == "circle":
+        # m = MeshTri.init_circle(geometry.radius)
+        if mesh_type != 'tri':
+            print(f"Warning: Circle only supports 'tri'. Using tri by defult.")
+        m = MeshTri.init_circle(nx, geometry.radius) 
+    else: 
+        raise NotImplementedError(
+            f"Interior sampling not implemented for geometry '{geometry.name}'."
+        )
+   
+    # Element and Basis
     if isinstance(m, MeshTri):
         e = ElementTriP1() if porder == 1 else ElementTriP2()
     elif isinstance(m, MeshQuad):
@@ -50,7 +78,7 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
 
     basis = Basis(m, e)
     
-    # 3. Física y Assembly
+    # Physics and Assembly 
     phys = PoissonPhysics(source_type=source_type, scale=scale)
     K = asm(laplace, basis)
     
@@ -79,7 +107,7 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
     
     F = asm(F_form, basis)
 
-    # 4. Boundary Conditions (Dirichlet u=0)
+    # Boundary Conditions (Dirichlet u=0)
     dofs = basis.get_dofs()
     D = dofs.all()
     u = solve(*condense(K, F, D=D))
@@ -89,7 +117,7 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
     if u_exact is not None:
         u_exact = u_exact.flatten()
 
-    # 5. Output Unificado
+    # Output of the problem
     return {
         "mesh": m,
         "basis": basis,
@@ -97,11 +125,23 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
         "u_exact": u_exact,
         "doflocs": x_dofs,
         "boundary_indices": D,
-        "interior_indices": basis.complement_dofs(D)
+        "interior_indices": basis.complement_dofs(D),
+        'K': K,
     }
 
 if __name__ == "__main__":
-    # Cambiado nelem por nx/ny para que coincida con tu firma de función
-    prob = get_problem(nx=10, ny=10, porder=2, mesh_type='tri')
+    from utils.geometry import geometry_factory
+    geo = geometry_factory("square", x_range=[0, 1], y_range=[0, 1])
+    prob = get_problem(geometry=geo, nx=10, ny=10, porder=2, mesh_type='tri')
+    print(f"--- TEST FEM SOLVER ---")
+    print(f"Geometría: {geo.name}")
+    print(f"Nodes (DOFs): {prob['doflocs'].shape[0]}")
+    print(f"Solution u mean: {prob['u'].mean():.6f}")
+    # circle outputs
+    print(f"\nProbando cambio a círculo...")
+    geo_cir = geometry_factory("circle", center=(0, 0), radius=1.0)
+    prob = get_problem(geometry=geo_cir, nx=10, ny=10, porder=2, mesh_type='tri')
+    print(f"--- TEST FEM SOLVER ---")
+    print(f"Geometría: {geo.name}")
     print(f"Nodes (DOFs): {prob['doflocs'].shape[0]}")
     print(f"Solution u mean: {prob['u'].mean():.6f}")

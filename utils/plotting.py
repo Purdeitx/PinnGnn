@@ -256,3 +256,30 @@ def plot_error_boxplot(u_exact, u_pred, var_names=None, model_name="PINN"):
     
     plt.tight_layout()
     return fig
+
+def plot_error_histogram(u_exact, u_pred, model_name="PINN"):
+    """
+    Genera un histograma de la distribución del error.
+    Útil para verificar si el error es aleatorio o sistemático.
+    """
+    if torch.is_tensor(u_exact): u_exact = u_exact.detach().cpu().numpy()
+    if torch.is_tensor(u_pred): u_pred = u_pred.detach().cpu().numpy()
+    
+    error = (u_exact.flatten() - u_pred.flatten())
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Histograma con densidad (normed) y KDE si tienes seaborn, o solo hist
+    n, bins, patches = ax.hist(error, bins=50, density=True, alpha=0.7, color='skyblue', edgecolor='black')
+    
+    # Añadimos una línea vertical en el cero
+    ax.axvline(0, color='red', linestyle='dashed', linewidth=2, label='Error 0')
+    
+    ax.set_title(f'Distribución del Error Residual ({model_name})')
+    ax.set_xlabel('Error ($u_{exact} - u_{pred}$)')
+    ax.set_ylabel('Densidad de Probabilidad')
+    ax.legend()
+    ax.grid(axis='y', alpha=0.3)
+    
+    plt.tight_layout()
+    return fig

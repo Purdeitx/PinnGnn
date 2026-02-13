@@ -6,37 +6,75 @@ from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import torch.nn as nn
 
-
 def get_activation(name):
-    """Convierte un string en un objeto de activación de PyTorch."""
+    """
+    Converts a string name into a PyTorch activation object.
+    
+    Args:
+        name (str): The name of the activation function (e.g., 'relu', 'silu', 'tanh').
+        
+    Returns:
+        nn.Module: The corresponding PyTorch activation function. Defaults to SiLU if name not found.
+    """
     activations = {
         'tanh': nn.Tanh(),
         'relu': nn.ReLU(),
         'sigmoid': nn.Sigmoid(),
         'elu': nn.ELU(),
-        'silu': nn.SiLU(),  # Muy recomendada para PINNs
+        'silu': nn.SiLU(), # Highly recommended for PINNs
+        'leakyrelu': nn.LeakyReLU(),
     }
-    return activations.get(name.lower(), nn.Tanh())
+    return activations.get(name.lower(), nn.SiLU())
 
 class MLP(nn.Module):
-    def __init__(self, in_features=2, out_features=1, hidden_layers=[64, 64, 64, 64], activation='tanh'):
+    """
+    A Multi-Layer Perceptron with customizable layers, activation, and normalization.
+    
+    Args:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+        hidden_layers (list of int): Sizes of the hidden layers.
+        activation (str): Name of the activation function to use.
+        dropout (float): Dropout probability.
+        layer_norm (bool): Whether to include LayerNorm after linear layers.
+    """
+    def __init__(self, in_features=2, out_features=1, hidden_layers=[64, 64, 64, 64], 
+                 activation='silu', dropout=0.0, layer_norm=False):
         super().__init__()
         act_fn = get_activation(activation)
         layers = []
-        layers.append(nn.Linear(in_features, hidden_layers[0]))
-        layers.append(act_fn)
-        for i in range(len(hidden_layers) - 1):
-            layers.append(nn.Linear(hidden_layers[i], hidden_layers[i+1]))
-            layers.append(act_fn)
-        layers.append(nn.Linear(hidden_layers[-1], out_features))
+        dims = [in_features] + hidden_layers
+        for i in range(len(dims) - 1):                              # stack of N hidden layers
+            layers.append(nn.Linear(dims[i], dims[i+1]))
+            if layer_norm:
+                layers.append(nn.LayerNorm(dims[i+1]))              # Layer norm
+            
+            layers.append(act_fn)                                   # Activation fn
+            if dropout > 0:
+                layers.append(nn.Dropout(p=dropout))                # dropout
+
+        layers.append(nn.Linear(hidden_layers[-1], out_features))   # output layer
         self.net = nn.Sequential(*layers)
+        self._init_weights()                                        # initialization
         
-        for m in self.net.modules():
-            if isinstance(m, nn.Linear):
+    def _init_weights(self):
+        """Initializes weights using Xavier normal for linear layers and constants for LayerNorm."""
+        for m in self.modules():
+            if isinstance(m, nn.Linear):                # Xavier initialization for linear layers
                 nn.init.xavier_normal_(m.weight)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LayerNorm):           # Initialize LayerNorm weights to 1 and biases to 0
+                nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
+        """
+        Args:
+            x (Tensor): Input tensor of shape (N, in_features).
+            
+        Returns:
+            Tensor: Output tensor of shape (N, out_features).
+        """
         return self.net(x)
 
 def generate_pinn_data(geometry, n_pde, n_bc):
@@ -96,18 +134,25 @@ class ValDataset(torch.utils.data.Dataset):
 
 
 class PINNSystem(pl.LightningModule):
-    def __init__(self, hidden_dim=64, num_layers=4, lr=1e-3, lambda_bc=100.0, physics=None, **kwargs): 
+    # def __init__(self, hidden_dim=64, num_layers=4, lr=1e-3, lambda_bc=100.0, physics=None, **kwargs): 
+    def __init__(self, hidden_dim=64, num_layers=4, input_dim=2, output_dim=1,
+                 activation='silu', dropout=0.0, layer_norm=False,
+                 lr=1e-3, lambda_bc=100.0, physics=None, 
+                 **kwargs): 
         super().__init__()
-        # Ignore collocation_points and physics in hparams
-        self.save_hyperparameters(ignore=['collocation_points', 'physics'])
-        self.physics = physics 
-        hidden_dim = self.hparams.get('hidden_dim', 64)
-        num_layers = self.hparams.get('num_layers', 4)
-        input_dim = self.hparams.get('input_dim', 2)
-        activation = self.hparams.get('activation', 'tanh')
+        # Ignore conflitvive hyperparameters
+        self.save_hyperparameters(ignore=['physics'])
+        self.physics = physics
+        h_dim = self.hparams.hidden_dim
+        n_lay = self.hparams.num_layers
+        i_dim = self.hparams.input_dim
+        o_dim = self.hparams.output_dim
+        activation = self.hparams.activation
+        drop  = self.hparams.dropout
+        l_norm = self.hparams.layer_norm
 
-        self.model = MLP(in_features=input_dim, out_features=1, 
-                         hidden_layers=[hidden_dim]*num_layers, activation=activation)
+        self.model = MLP(in_features=i_dim, out_features=o_dim, hidden_layers=[h_dim]*n_lay, 
+                         activation=activation, dropout=drop, layer_norm=l_norm)
         
         from utils.metrics import calculate_rrmse
         self.rrmse_fn = calculate_rrmse

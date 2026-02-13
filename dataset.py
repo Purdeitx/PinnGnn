@@ -66,8 +66,13 @@ class PINNGraphDataset(Dataset):
         return 1
 
     def __getitem__(self, idx):
+        # We add a boundary feature to the node attributes: [x, y, is_boundary]
+        is_boundary = torch.zeros((self.x.shape[0], 1))
+        is_boundary[self.boundary_mask] = 1.0
+        x_features = torch.cat([self.x, is_boundary], dim=-1)
+
         return {
-            'x': self.x,
+            'x': x_features,
             'edge_index': self.edge_index,
             'K_values': self.K_values,
             'K_indices': self.K_indices,
@@ -75,3 +80,4 @@ class PINNGraphDataset(Dataset):
             'boundary_mask': self.boundary_mask,
             'u_exact': self.u_exact
         }
+

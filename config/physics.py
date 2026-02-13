@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+# this is especific for 2D
 class PoissonPhysics:
     """
     Versión optimizada 2D. 
