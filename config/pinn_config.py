@@ -7,12 +7,14 @@ PINN_CONFIG = {
     'output_root': COMMON_CONFIG['output_root'],
     # mesh and geometry
     'geometry_type': COMMON_CONFIG['geometry_type'],
+    'mesh': COMMON_CONFIG['mesh'],  
     'x_range': COMMON_CONFIG['x_range'],
     'y_range': COMMON_CONFIG['y_range'],
     # physics
     'problem': COMMON_CONFIG['problem'],
     'source_type': COMMON_CONFIG['source_type'],
     'source_value': COMMON_CONFIG['source_value'],
+    'bc_type': COMMON_CONFIG['bc_type'],
     # learning
     'epochs': COMMON_CONFIG['epochs'],
     'batch': COMMON_CONFIG['batch'],

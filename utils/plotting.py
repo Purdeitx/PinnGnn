@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.collections import PolyCollection
+from matplotlib.collections import PolyCollection, LineCollection
 import numpy as np
 import torch
 import os
@@ -281,5 +281,224 @@ def plot_error_histogram(u_exact, u_pred, model_name="PINN"):
     ax.legend()
     ax.grid(axis='y', alpha=0.3)
     
+    plt.tight_layout()
+    return fig
+
+def plot_flux_map(edge_index, flux, coords, title="Heat Flux Map (GNN)"):
+    """
+    Visualiza el flujo aprendido por la GNN en las aristas del grafo.
+    
+    Args:
+        edge_index: Tensor [2, num_edges] con los índices de los nodos.
+        flux: Array/Tensor [num_edges] con el valor del flujo en cada arista.
+        coords: Array [num_nodes, 2] con las coordenadas (x, y) de los nodos.
+        title: Título del gráfico.
+    """
+    if torch.is_tensor(flux):
+        flux = flux.detach().cpu().numpy().flatten()
+    if torch.is_tensor(edge_index):
+        edge_index = edge_index.detach().cpu().numpy()
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+    
+    # Extraemos puntos de inicio (senders) y fin (receivers) de cada arista
+    points = coords[edge_index.T] # Shape: [num_edges, 2, 2]
+    
+    # Creamos una colección de líneas para que sea eficiente de plotear
+    # Normilizamos el color según la intensidad del flujo
+    from matplotlib.collections import LineCollection
+    lc = LineCollection(points, array=flux, cmap='jet', linewidths=2)
+    
+    line = ax.add_collection(lc)
+    fig.colorbar(line, ax=ax, label='Flux Intensity ($q$)')
+    
+    # Ajustar límites del plot
+    ax.set_xlim(coords[:, 0].min() - 0.1, coords[:, 0].max() + 0.1)
+    ax.set_ylim(coords[:, 1].min() - 0.1, coords[:, 1].max() + 0.1)
+    
+    ax.set_title(title)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_aspect('equal')
+    ax.grid(alpha=0.3)
+    
+    return fig, ax  
+
+def plot_flux_comparison(flux_gnn, graph, physics, title="Flux Comparison: GT vs GNN"):
+    
+    pos = graph.pos.clone().detach().requires_grad_(True)
+    u_analitica = physics.exact_solution(pos)
+    grad_gt_nodes = torch.autograd.grad(
+        u_analitica, pos, grad_outputs=torch.ones_like(u_analitica),
+        create_graph=False
+    )[0]
+    
+    senders, receivers = graph.edge_index
+    dist_vec = graph.pos[receivers] - graph.pos[senders]
+    dist_norm = torch.norm(dist_vec, dim=1, keepdim=True) + 1e-8
+    unit_vec = dist_vec / dist_norm
+    
+    grad_avg_edge = (grad_gt_nodes[senders] + grad_gt_nodes[receivers]) / 2.0
+    flux_gt = -(grad_avg_edge * unit_vec).sum(dim=1).detach().cpu().numpy()
+
+    # --- FIX 1: quedarse solo con aristas i→j donde i < j ---
+    # Elimina la arista duplicada j→i, nos quedamos con una dirección canónica
+    s_np = senders.cpu().numpy()
+    r_np = receivers.cpu().numpy()
+    mask_canonical = s_np < r_np  # una sola dirección por par de nodos
+
+    flux_gt_plot  = flux_gt[mask_canonical]
+    flux_gnn_plot = flux_gnn[mask_canonical]
+
+    # --- FIX 2: verificar si el signo de la red está invertido ---
+    from scipy.stats import pearsonr
+    corr, _ = pearsonr(flux_gt_plot, flux_gnn_plot)
+    print(f"Correlación GT vs GNN: {corr:.4f}")
+    if corr < -0.5:
+        print("⚠️  Signo invertido detectado — corrigiendo")
+        # flux_gnn_plot = -flux_gnn_plot
+
+    flux_error = np.abs(flux_gt_plot - flux_gnn_plot)
+
+    # --- Plotting solo con aristas canónicas ---
+    coords = graph.pos.detach().cpu().numpy()
+    edge_index_np = graph.edge_index.cpu().numpy()
+    
+    # Filtrar puntos para LineCollection
+    points_all = coords[edge_index_np.T]          # [E, 2, 2]
+    points_plot = points_all[mask_canonical]       # [E/2, 2, 2]
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    titles = ["Ground Truth Flux", "GNN Predicted Flux", "Absolute Error"]
+    datas  = [flux_gt_plot, flux_gnn_plot, flux_error]
+    cmaps  = ['jet', 'jet', 'inferno']
+
+    for ax, data, t, cmap in zip(axes, datas, titles, cmaps):
+        lc = LineCollection(points_plot, array=data, cmap=cmap, linewidths=1.5)
+        line = ax.add_collection(lc)
+        fig.colorbar(line, ax=ax)
+        ax.set_title(t)
+        ax.set_aspect('equal')
+        ax.set_xlim(coords[:,0].min()-0.1, coords[:,0].max()+0.1)
+        ax.set_ylim(coords[:,1].min()-0.1, coords[:,1].max()+0.1)
+
+    fig.suptitle(f"{title}  |  corr={corr:.3f}", fontsize=12)
+    plt.tight_layout()
+    return fig
+
+def plot_flux_symmetry(flux_gnn, graph, physics, title="Flux Symmetry Check"):
+    """
+    Visualiza las dos direcciones de arista por separado para verificar
+    si flux_ij ≈ -flux_ji (antisimetría física).
+    """
+    senders, receivers = graph.edge_index
+    s_np = senders.cpu().numpy()
+    r_np = receivers.cpu().numpy()
+
+    # Separar las dos direcciones canónicas
+    mask_ij = s_np < r_np   # dirección i→j (s < r)
+    mask_ji = s_np > r_np   # dirección j→i (s > r)
+
+    flux_ij = flux_gnn[mask_ij]
+    flux_ji = flux_gnn[mask_ji]
+
+    # --- Verificar que los pares están correctamente ordenados ---
+    # Para cada arista i→j debe existir j→i con el mismo par de nodos
+    pairs_ij = set(zip(s_np[mask_ij], r_np[mask_ij]))
+    pairs_ji = set(zip(r_np[mask_ji], s_np[mask_ji]))  # invertimos para comparar
+    assert pairs_ij == pairs_ji, "⚠️  Las aristas no están perfectamente emparejadas"
+
+    # Ordenar flux_ji para que corresponda al mismo orden que flux_ij
+    # Construir lookup: (i,j) → flux_ji value
+    lookup_ji = {(r_np[k], s_np[k]): flux_gnn[k] for k in np.where(mask_ji)[0]}
+    flux_ji_sorted = np.array([lookup_ji[(i, j)] 
+                                for i, j in zip(s_np[mask_ij], r_np[mask_ij])])
+
+    # --- GT para referencia ---
+    pos = graph.pos.clone().detach().requires_grad_(True)
+    u_analitica = physics.exact_solution(pos)
+    grad_gt_nodes = torch.autograd.grad(
+        u_analitica, pos, grad_outputs=torch.ones_like(u_analitica),
+        create_graph=False
+    )[0]
+    dist_vec = graph.pos[receivers] - graph.pos[senders]
+    dist_norm = torch.norm(dist_vec, dim=1, keepdim=True) + 1e-8
+    unit_vec  = dist_vec / dist_norm
+    grad_avg  = (grad_gt_nodes[senders] + grad_gt_nodes[receivers]) / 2.0
+    flux_gt_all = -(grad_avg * unit_vec).sum(dim=1).detach().cpu().numpy()
+    flux_gt_ij  = flux_gt_all[mask_ij]
+
+    # --- Métricas de antisimetría ---
+    antisym_residual = flux_ij + flux_ji_sorted   # debería ser ~0 si antisimétrico
+    print(f"Antisimetría  — mean|flux_ij + flux_ji|: {np.abs(antisym_residual).mean():.4f}")
+    print(f"              — max|flux_ij + flux_ji|:  {np.abs(antisym_residual).max():.4f}")
+    
+    from scipy.stats import pearsonr
+    corr_sym, _  = pearsonr(flux_ij, -flux_ji_sorted)
+    corr_gt_ij,_ = pearsonr(flux_gt_ij, flux_ij)
+    corr_gt_ji,_ = pearsonr(flux_gt_ij, -flux_ji_sorted)
+    print(f"Correlación flux_ij vs -flux_ji:  {corr_sym:.4f}  (1.0 = perfectamente antisimétrico)")
+    print(f"Correlación GT vs flux_ij:        {corr_gt_ij:.4f}")
+    print(f"Correlación GT vs -flux_ji:       {corr_gt_ji:.4f}")
+
+    # --- Plotting ---
+    coords     = graph.pos.detach().cpu().numpy()
+    edge_index = graph.edge_index.cpu().numpy()
+    points_all = coords[edge_index.T]        # [E, 2, 2]
+    points_ij  = points_all[mask_ij]         # [E/2, 2, 2]
+
+    # Escala común para flux_ij y flux_ji para que sean comparables
+    vmax = max(np.abs(flux_ij).max(), np.abs(flux_ji_sorted).max())
+    vmin = -vmax
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    fig.suptitle(title, fontsize=13)
+
+    # Fila superior: las dos direcciones de la red + diferencia
+    datasets_top = [
+        (flux_ij,          "GNN flux  i→j  (s < r)",   'RdBu_r'),
+        (-flux_ji_sorted,  "GNN flux  j→i  negado",     'RdBu_r'),
+        (antisym_residual, "Residuo antisimetría\nflux_ij + flux_ji", 'inferno'),
+    ]
+    for ax, (data, t, cmap) in zip(axes[0], datasets_top):
+        vn = vmax if cmap == 'RdBu_r' else None
+        lc = LineCollection(points_ij, array=data, cmap=cmap, linewidths=1.5,
+                            norm=plt.Normalize(-vn, vn) if vn else None)
+        ax.add_collection(lc)
+        fig.colorbar(lc, ax=ax)
+        ax.set_title(t)
+        ax.set_aspect('equal')
+        ax.set_xlim(coords[:,0].min()-0.1, coords[:,0].max()+0.1)
+        ax.set_ylim(coords[:,1].min()-0.1, coords[:,1].max()+0.1)
+
+    # Fila inferior: GT + comparativa scatter
+    lc_gt = LineCollection(points_ij, array=flux_gt_ij, cmap='RdBu_r', linewidths=1.5,
+                           norm=plt.Normalize(-vmax, vmax))
+    axes[1, 0].add_collection(lc_gt)
+    fig.colorbar(lc_gt, ax=axes[1, 0])
+    axes[1, 0].set_title("GT flux  i→j")
+    axes[1, 0].set_aspect('equal')
+    axes[1, 0].set_xlim(coords[:,0].min()-0.1, coords[:,0].max()+0.1)
+    axes[1, 0].set_ylim(coords[:,1].min()-0.1, coords[:,1].max()+0.1)
+
+    # Scatter: GT vs flux_ij
+    axes[1, 1].scatter(flux_gt_ij, flux_ij, s=1, alpha=0.3, c='steelblue')
+    lim = max(np.abs(flux_gt_ij).max(), np.abs(flux_ij).max())
+    axes[1, 1].plot([-lim, lim], [-lim, lim], 'r--', lw=1, label='y=x')
+    axes[1, 1].set_xlabel("GT flux_ij")
+    axes[1, 1].set_ylabel("GNN flux_ij")
+    axes[1, 1].set_title(f"Scatter GT vs i→j\ncorr={corr_gt_ij:.3f}")
+    axes[1, 1].legend()
+    axes[1, 1].set_aspect('equal')
+
+    # Scatter: GT vs -flux_ji (debería coincidir con el anterior si es antisimétrico)
+    axes[1, 2].scatter(flux_gt_ij, -flux_ji_sorted, s=1, alpha=0.3, c='darkorange')
+    axes[1, 2].plot([-lim, lim], [-lim, lim], 'r--', lw=1, label='y=x')
+    axes[1, 2].set_xlabel("GT flux_ij")
+    axes[1, 2].set_ylabel("GNN -flux_ji")
+    axes[1, 2].set_title(f"Scatter GT vs -j→i\ncorr={corr_gt_ji:.3f}")
+    axes[1, 2].legend()
+    axes[1, 2].set_aspect('equal')
+
     plt.tight_layout()
     return fig

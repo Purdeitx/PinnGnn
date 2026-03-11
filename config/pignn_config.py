@@ -1,12 +1,13 @@
 from .common_config import COMMON_CONFIG
 
-GNN_CONFIG = {
+PIGNN_CONFIG = {
     **COMMON_CONFIG,
     # general configuration
     'project_name': COMMON_CONFIG['project_name'],
     'output_root': COMMON_CONFIG['output_root'],
     # mesh and geometry
     'geometry_type': COMMON_CONFIG['geometry_type'],
+    'mesh': COMMON_CONFIG['mesh'],
     'nx': COMMON_CONFIG['nelem'],
     'ny': COMMON_CONFIG['nelem'],
     'x_range': COMMON_CONFIG['x_range'],
@@ -28,8 +29,12 @@ GNN_CONFIG = {
     # other
     'node_in': 4,
     'edge_in': 3,
+    'node_out': 1,
+    'edge_out': 1,
     'decoder_out': 1,
     'latent_dim': 64,       # Espacio latente para encoders y procesadores
     'msg_passes': 5,
+    'lambda_bc': 100,
+    'lambda_pde': 1.0,
 }
 

@@ -15,6 +15,7 @@ COMMON_CONFIG = {
     'problem': 'Poisson',  # For folder: PDE_Poisson
     'source_type': 'sine', # 
     'source_value': 1.0,   # Gao's S=[1], f(x,el)=source_value
+    'bc_type': 'zero',  
     # learning
     'epochs': 500,
     'batch': 64,

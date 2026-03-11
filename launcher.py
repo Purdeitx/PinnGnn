@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch.utils.data import DataLoader as PinnDataLoader
 from torch_geometric.loader import DataLoader as GNNDataLoader
+from pytorch_lightning.loggers import CSVLogger
 
 # =========================
 # Project-specific imports
@@ -20,7 +21,7 @@ from config.gnn_config import GNN_CONFIG
 
 # Model-specific modules
 from PINN.pinn_module import PINNSystem, PinnDataset, ValDataset
-from FEM.fem_solver import get_problem
+from FEM.fem_solver import get_problem, solve_problem
 from GNN.gnn_module import MessagePassing, DirectSystem
 from GNN.MeshGraphNet import MeshGraphNet, MGNSystem
 
@@ -121,12 +122,14 @@ def main(config):
     # Solve FEM problem
     prob = get_problem(
         geometry=geom,
+        physics=physics,    
         nx=FEM_CONFIG['nx'],
         ny=FEM_CONFIG['ny'],
         porder=FEM_CONFIG['porder'],
         source_type=FEM_CONFIG['source_type'],
         mesh_type=FEM_CONFIG['mesh']
     )
+    prob['u'] = solve_problem(prob)
 
     save_json(FEM_CONFIG, fem_dir, "fem_config.json")
 
@@ -270,27 +273,33 @@ def main(config):
     # ---------------- Training ----------------
     callbacks = [
         EarlyStopping(monitor='val_loss', patience=300, mode='min', min_delta=1e-6, verbose=True),
-        ModelCheckpoint(monitor='val_loss', save_top_k=1, mode='min', filename='best_pinn'),
+        ModelCheckpoint(dirpath=pinn_dir, monitor='val_loss', save_top_k=1, mode='min', filename='best_pinn'),
         GradientMonitor(verbose=False),
         LossPlotterCallback(model_name="Poisson PINN")
     ]
-
+    logger_pinn = CSVLogger(save_dir=pinn_dir, name="logs")
     trainer = pl.Trainer(
         max_epochs=config['epochs'],
         accelerator="auto",
         devices=1,
         callbacks=callbacks,
-        log_every_n_steps=20,
+        logger=logger_pinn,
+        log_every_n_steps=50,
         default_root_dir=pinn_dir
     )
 
     trainer.fit(model_system, train_dataloaders=train_loader, val_dataloaders=val_loader)
-    # save best model and last state of the model
-    best_path = trainer.checkpoint_callback.best_model_path
-    if best_path:
-        import shutil
-        shutil.copy(best_path, os.path.join(pinn_dir, "best_pinn_model.ckpt"))
+    metrics_file = os.path.join(trainer.logger.log_dir, "metrics.csv")
+    if os.path.exists(metrics_file):
+        import pandas as pd
+        df_metrics = pd.read_csv(metrics_file)
+        from utils.plotting import plot_loss
+        fig = plot_loss(df_metrics, model_name="Poisson PINN")
+        fig.savefig(os.path.join(pinn_dir, "loss_evolution.png"))
+        plt.close(fig)
 
+    # save best model and last state of the model
+    trainer.checkpoint_callback.best_model_path
     trainer.save_checkpoint(os.path.join(pinn_dir, "final_pinn_model.ckpt"))
     torch.save(model_system.model.state_dict(), os.path.join(pinn_dir, "best_pinn_weights.pth"))
     print(f"Save PINN model condiguration {pinn_dir}")
@@ -431,31 +440,39 @@ def main(config):
         print("\n".join(report_lines))
 
     # ---------------- Training ----------------
-    callbacks = [
+    mgn_callbacks = [
         EarlyStopping(monitor='val_loss', patience=100, mode='min', verbose=True),
-        ModelCheckpoint(monitor='val_loss', filename='best_gnn_model'),
+        ModelCheckpoint(dirpath=gnn_dir, monitor='val_loss', filename='best_gnn_model'),
         GradientMonitor(verbose=False),
         LossPlotterCallback(model_name="Poisson GNN")
     ]
 
+    logger_mgn = CSVLogger(save_dir=gnn_dir, name="logs")
     trainer_gnn = pl.Trainer(
         max_epochs=MGN_CONFIG['epochs'],
         accelerator="auto",
         devices=1,
-        callbacks=callbacks,
+        callbacks=mgn_callbacks,
+        default_root_dir = gnn_dir,
+        logger=logger_mgn,
         log_every_n_steps=1
     )
 
     trainer_gnn.fit(system_gnn, train_loader, val_loader)
-    # save best model and last state of the model
-    best_path_gnn = trainer_gnn.checkpoint_callback.best_model_path
-    if best_path_gnn:
-        import shutil
-        shutil.copy(best_path_gnn, os.path.join(gnn_dir, "best_gnn_model.ckpt"))
+    metrics_file = os.path.join(trainer_gnn.logger.log_dir, "metrics.csv")
+    if os.path.exists(metrics_file):
+        import pandas as pd
+        df_metrics = pd.read_csv(metrics_file)
+        from utils.plotting import plot_loss
+        fig = plot_loss(df_metrics, model_name="Poisson GNN")
+        fig.savefig(os.path.join(gnn_dir, "loss_evolution.png"))
+        plt.close(fig)
 
+    # save best model and last state of the model
+    trainer_gnn.checkpoint_callback.best_model_path
     trainer_gnn.save_checkpoint(os.path.join(gnn_dir, "final_gnn_model.ckpt"))
     torch.save(system_gnn.model.state_dict(), os.path.join(gnn_dir, "best_gnn_weights.pth"))
-    print(f"SAved GNN model configuration {gnn_dir}")
+    print(f"Saved GNN model configuration {gnn_dir}")
 
     # ---------------- Evaluation ----------------
     system_gnn.eval()
@@ -477,6 +494,8 @@ def main(config):
     # ======================================================
     # 4) Message Passing Graph TRAINING (only procesor)
     # ======================================================
+    print(f"\n[4/4] Configuring Message Passing Graph for {config['problem']}...")
+
     mpg_dir = os.path.join(run_dir, "mpg")
     os.makedirs(mpg_dir, exist_ok=True)
 
@@ -522,41 +541,59 @@ def main(config):
         edge_dim=MPG_CONFIG['edge_in'], 
         **MPG_CONFIG 
     )
-    system_direct = DirectSystem(
-        mp_layer=model_mpg, 
+    system_mpg = DirectSystem(
+        model=model_mpg, 
         msg_passes=MPG_CONFIG['msg_passes'], 
         lr=MPG_CONFIG['lr']
     )
+
     mpg_callbacks = [
-        EarlyStopping(monitor='val_loss', patience=100, mode='min'),
+        EarlyStopping(monitor='val_loss', patience=100, mode='min', verbose=True),
         ModelCheckpoint(dirpath=mpg_dir, monitor='val_loss', filename='best_mpg_model'),
         LossPlotterCallback(model_name="Poisson MPG")
     ]
+    logger_mpg = CSVLogger(save_dir=mpg_dir, name="logs")
     trainer_mpg = pl.Trainer(
         max_epochs=MPG_CONFIG['epochs'],
         accelerator="auto",
         devices=1,
         callbacks=mpg_callbacks,
-        default_root_dir=mpg_dir
+        default_root_dir=mpg_dir,
+        logger=logger_mpg,
+        log_every_n_steps=1
     )
-    trainer_mpg.fit(system_direct, train_loader, val_loader)
+    trainer_mpg.fit(system_mpg, train_loader, val_loader)
+    metrics_file = os.path.join(trainer_mpg.logger.log_dir, "metrics.csv")
+    if os.path.exists(metrics_file):
+        import pandas as pd
+        df_metrics = pd.read_csv(metrics_file)
+        from utils.plotting import plot_loss
+        fig = plot_loss(df_metrics, model_name="Poisson MPG")
+        fig.savefig(os.path.join(mpg_dir, "loss_evolution.png"))
+        plt.close(fig)
+
+    # save best model and last state of the model
+    trainer_mpg.checkpoint_callback.best_model_path
+    trainer_mpg.save_checkpoint(os.path.join(mpg_dir, "final_mpg_model.ckpt"))
+    torch.save(system_mpg.model.state_dict(), os.path.join(mpg_dir, "best_mpg_weights.pth"))
+    print(f"Saved MPG model configuration {mpg_dir}")
     
-    system_direct.eval()
+    system_mpg.eval()
     with torch.no_grad():
-        u_gnn_pred = system_direct(val_graph.to(system_direct.device)).cpu().numpy().flatten()
+        u_mpg_pred = system_mpg(val_graph.to(system_mpg.device)).cpu().numpy().flatten()
 
     u_fem = prob_val['u_exact']
     coords = prob_val['doflocs']
 
-    fig_com = plot_comparison_with_fem(u_fem, u_gnn_pred, coords, model_name="Message Passing Graph")
+    fig_com = plot_comparison_with_fem(u_fem, u_mpg_pred, coords, model_name="Message Passing Graph")
     fig_com.savefig(os.path.join(mpg_dir, "mpg_vs_fem_comparison.png"), dpi=300, bbox_inches='tight')
     plt.close(fig_com)
 
-    fig_err = plot_error_analysis(u_fem, u_gnn_pred, model_name="MPG")
+    fig_err = plot_error_analysis(u_fem, u_mpg_pred, model_name="MPG")
     fig_err.savefig(os.path.join(mpg_dir, "mpg_error_analysis.png"), dpi=300, bbox_inches='tight')
     plt.close(fig_err)
 
-    np.save(os.path.join(mpg_dir, "u_mpg_pred.npy"), u_gnn_pred)
+    np.save(os.path.join(mpg_dir, "u_mpg_pred.npy"), u_mpg_pred)
 
     print(f">>> MPG completed. Report available at {mpg_dir}")
 
@@ -584,7 +621,7 @@ if __name__ == "__main__":
         'source_type': "sine",
         'source_value': 1.0,
         # Arquitectura y optimizacion        
-        'epochs': 10,
+        'epochs': 5000,
         'batch': 32,
         'lr': 1e-3,
         'hidden': 32,
@@ -596,9 +633,9 @@ if __name__ == "__main__":
         'lambda_bc': 10.0,              # Peso de la condición de contorno
         'use_fem_for_train': False,     # ¿Usa nodos FEM para entrenar?
         'use_fem_for_test': False,       # ¿Evalúa contra la malla FEM?
-        'n_train': 2000,                # Puntos de colocación (interior)
-        'n_test': 500,                   # Puntos de validación
-        'n_bc': 400,                    # Puntos en el contorno
+        'n_train': 100,                # Puntos de colocación (interior)
+        'n_test': 100,                   # Puntos de validación
+        'n_bc': 200,                    # Puntos en el contorno
         # Parámetros GNN
         'node_in': 4,
         'edge_in': 3,
@@ -606,8 +643,8 @@ if __name__ == "__main__":
         'latent_dim': 64,       # Espacio latente para encoders y procesadores
         'msg_passes': 6,
         # Extra parameters MeshGraphNet/MessagPassingGraph
-        'enc_n_units': 4, 
-        'enc_n_layers': 3, 
+        'enc_n_units': None, 
+        'enc_n_layers': None, 
         'enc_e_units': None, 
         'enc_e_layers': None,
         'dec_n_units': None, 

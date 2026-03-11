@@ -3,68 +3,12 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from utils.gnn_utils import decompose_graph, copy_geometric_data
 from torch_geometric.data import Data
-try:
-    from torch_scatter import scatter_add
-except ImportError:
-    from torch_geometric.utils import scatter
-    def scatter_add(src, index, dim=0, dim_size=None):
-        return scatter(src, index, dim=dim, dim_size=dim_size, reduce='sum')
+from utils.models import MLP
 
-def get_activation(name):
-    """Converts a string name into a PyTorch activation object."""
-    activations = {
-        'tanh': nn.Tanh(),
-        'relu': nn.ReLU(),
-        'sigmoid': nn.Sigmoid(),
-        'elu': nn.ELU(),
-        'silu': nn.SiLU(), # Highly recommended for PINNs
-        'leakyrelu': nn.LeakyReLU(),
-    }
-    return activations.get(name.lower(), nn.SiLU())
+from torch_geometric.utils import scatter
+def scatter_add(src, index, dim=0, dim_size=None):
+    return scatter(src, index, dim=dim, dim_size=dim_size, reduce='sum')
 
-class MLP(nn.Module):
-    """
-    Standard MLP following the project's skeleton.
-    
-    Args:
-        in_features (int): Input dimension.
-        out_features (int): Output dimension.
-        hidden_layers (list): List of dimensions for each hidden layer.
-        activation (str): Activation function name.
-        dropout (float): Dropout probability.
-        layer_norm (bool): Whether to use Layer Normalization.
-    """
-    def __init__(self, in_features, out_features, hidden_layers=[64, 64], 
-                 activation='silu', dropout=0.0, layer_norm=False):
-        super().__init__()
-        act_fn = get_activation(activation)
-        layers = []
-        dims = [in_features] + hidden_layers
-        
-        for i in range(len(dims) - 1):
-            layers.append(nn.Linear(dims[i], dims[i+1]))
-            if layer_norm:
-                layers.append(nn.LayerNorm(dims[i+1]))
-            layers.append(act_fn)
-            if dropout > 0:
-                layers.append(nn.Dropout(p=dropout))
-
-        layers.append(nn.Linear(dims[-1], out_features))
-        self.net = nn.Sequential(*layers)
-        self._init_weights()
-        
-    def _init_weights(self):
-        """Xavier initialization for weights and zero for biases."""
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.LayerNorm):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-
-    def forward(self, x):
-        return self.net(x)
 
 class EdgeProcessor(nn.Module):
     """Computes edge updates based on connected nodes and current edge features."""
@@ -164,10 +108,10 @@ class MessagePassing(nn.Module):
         return Data(x=x, edge_index=graph.edge_index, edge_attr=edge_attr)
     
 class DirectSystem(pl.LightningModule):
-    def __init__(self, mp_layer, msg_passes=5, lr=1e-3):
+    def __init__(self, model, msg_passes=5, lr=1e-3):
         super().__init__()
         self.save_hyperparameters(ignore=['model'])
-        self.mp_layer = mp_layer
+        self.model = model
         self.msg_passes = msg_passes
         self.lr = lr
         self.loss_fn = nn.MSELoss()
@@ -175,7 +119,7 @@ class DirectSystem(pl.LightningModule):
     def forward(self, graph):
         g = graph.clone()
         for _ in range(self.msg_passes):
-            g = self.mp_layer(g) 
+            g = self.model(g) 
 
         # predition is the last feature
         u_pred = g.x[:, 3:4]

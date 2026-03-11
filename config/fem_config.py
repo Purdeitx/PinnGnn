@@ -18,6 +18,7 @@ FEM_CONFIG = {
     'problem': COMMON_CONFIG['problem'],
     'source_type': COMMON_CONFIG['source_type'], 
     'source_value': COMMON_CONFIG['source_value'],
+    'bc_type': COMMON_CONFIG['bc_type'],
     # other
     }
 

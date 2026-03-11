@@ -23,10 +23,10 @@ except ImportError:
                         ElementQuad1, ElementQuad2)
 
 # Local modules 
-from config.physics import PoissonPhysics
+from config.physics import PoissonGeneral
 from utils import geometry
 
-def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='tri', scale=1.0, custom_mesh=None):
+def get_problem(geometry, physics=None, nx=4, ny=4, porder=1, mesh='tri', custom_mesh=None):
     """
     Defines a Poisson problem on a geometry:
     - Delta u = f
@@ -35,9 +35,6 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
     Args:
         nelem (int): Number of elements along one side (total elements = 2 * nelem^2).
         porder (int): Polynomial order (1 for P1, 2 for P2).
-        source_type (str): 'sine' or 'const'.
-        scale (float): Scaling factor (default 1.0 for unit range).
-        source_value (float): Source value for const case, matching Gao's f(x,el)=source_value.
         mesh_type (str): Type of mesh ('tri' for triangular, 'quad' for quadrilateral).
         
     Returns:
@@ -52,15 +49,15 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
         y = np.linspace(geometry.y_range[0], geometry.y_range[1], ny + 1)
         # m = MeshTri.init_tensor(x, y)
 
-        if mesh_type == 'tri':
+        if mesh == 'tri':
             m = MeshTri.init_tensor(x, y)
-        elif mesh_type == 'quad':
+        elif mesh == 'quad':
             m = MeshQuad.init_tensor(x, y)
         else:
-            raise ValueError(f"Tipo de malla '{mesh_type}' no soportado para Square.")
+            raise ValueError(f"Tipo de malla '{mesh}' no soportado para Square.")
     elif geometry.name == "circle":
         # m = MeshTri.init_circle(geometry.radius)
-        if mesh_type != 'tri':
+        if mesh != 'tri':
             print(f"Warning: Circle only supports 'tri'. Using tri by defult.")
         m = MeshTri.init_circle(nx, geometry.radius) 
     else: 
@@ -79,21 +76,17 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
     basis = Basis(m, e)
     
     # Physics and Assembly 
-    phys = PoissonPhysics(source_type=source_type, scale=scale)
-    K = asm(laplace, basis)
-    
+    # phys = PoissonPhysics(source_type=source_type, scale=scale)
+    if physics is not None:
+        print(f"Using custom physics: {physics}")
+        phys = physics 
+    else:
+        print(f"Using default PoissonPhysics with source_type='sine' and scale=1.")
+        phys = PoissonGeneral()
 
-    '''
-    # Ejemplo de forma lineal para el término fuente f(x):
-    @LinearForm
-    def F_form(v, w):
-        if phys.source_type == 'sine':
-            # f = scale * 2 * pi^2 * sin(pi*x) * sin(pi*y)
-            f_val = phys.scale * 2 * (np.pi**2) * np.sin(np.pi * w.x[0]) * np.sin(np.pi * w.x[1])
-        else:
-            f_val = phys.scale 
-        return f_val * v
-    '''
+    K = asm(laplace, basis)
+    M = asm(mass, basis)
+
     @LinearForm
     def F_form(v, w):
         original_shape = w.x[0].shape 
@@ -110,9 +103,9 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
     # Boundary Conditions (Dirichlet u=0)
     dofs = basis.get_dofs()
     D = dofs.all()
-    u = solve(*condense(K, F, D=D))
-
     x_dofs = basis.doflocs.T
+
+    # Exact solution (for validation)
     u_exact = phys.exact_solution(x_dofs)
     if u_exact is not None:
         u_exact = u_exact.flatten()
@@ -121,13 +114,48 @@ def get_problem(geometry, nx=4, ny=4, porder=1, source_type='sine', mesh_type='t
     return {
         "mesh": m,
         "basis": basis,
-        "u": u,
+        "u": None,
         "u_exact": u_exact,
         "doflocs": x_dofs,
         "boundary_indices": D,
         "interior_indices": basis.complement_dofs(D),
+        'F': F,
         'K': K,
+        'M': M,
+        "physics": phys
     }
+
+def solve_problem(prob):
+    K, F, D = prob['K'], prob['F'], prob['boundary_indices']
+    u_bc = prob['u_exact']
+    u = solve(*condense(K, F, x=u_bc, D=D))
+    return u
+
+def compute_fem_flux(prob, u_fem):
+    """
+    Calcula el flujo (gradiente proyectado) en las aristas de la malla FEM.
+    
+    Args:
+        prob (dict): Diccionario retornado por get_problem.
+        u_fem (ndarray): Solución calculada por solve_problem.
+        
+    Returns:
+        ndarray: Flujo en cada arista del grafo (definido por prob['K'].tocoo()).
+    """
+    coords = prob['doflocs']
+    K_coo = prob['K'].tocoo()
+    senders, receivers = K_coo.row, K_coo.col
+    
+    # Diferencia de potencial u_j - u_i
+    du = u_fem[receivers] - u_fem[senders]
+    
+    # Distancia euclídea entre nodos
+    dist = np.linalg.norm(coords[receivers] - coords[senders], axis=1) + 1e-8
+    
+    # Flujo q = -grad(u) projected on edge
+    # q_ij = -(u_j - u_i) / dist
+    flux = -du / dist
+    return flux
 
 if __name__ == "__main__":
     from utils.geometry import geometry_factory
