@@ -105,10 +105,12 @@ dependencies:
       - fsspec==2026.2.0
       - idna==3.11
       - ipython==8.12.3
+      - ipywidgets==8.1.8
       - jinja2==3.1.6
       - jsonschema==4.26.0
       - jsonschema-specifications==2025.9.1
       - jupyterlab-pygments==0.3.0
+      - jupyterlab-widgets==3.0.16
       - kiwisolver==1.4.9
       - lightning-utilities==0.15.2
       - markdown-it-py==4.0.0
@@ -166,6 +168,7 @@ dependencies:
       - tzdata==2025.3
       - urllib3==2.6.3
       - webencodings==0.5.1
+      - widgetsnbextension==4.0.15
       - xxhash==3.6.0
       - yarg==0.1.9
       - yarl==1.22.0
