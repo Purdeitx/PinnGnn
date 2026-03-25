@@ -1,0 +1,35 @@
+{
+    "project_name": "out",
+    "output_root": "outputs",
+    "geometry_type": "square",
+    "nelem": 2,
+    "mesh": "quad",
+    "porder": 2,
+    "x_range": [
+        0.0,
+        1.0
+    ],
+    "y_range": [
+        0.0,
+        1.0
+    ],
+    "problem": "Poisson",
+    "source_type": "sine",
+    "source_value": 1.0,
+    "bc_type": "zero",
+    "epochs": 5000,
+    "batch": 32,
+    "lr": 0.001,
+    "hidden": 32,
+    "num_layers": 2,
+    "activation": "silu",
+    "layer_norm": false,
+    "dropout": 0.0,
+    "hidden_dim": 64,
+    "use_fem_for_train": false,
+    "use_fem_for_test": false,
+    "n_train": 100,
+    "n_test": 100,
+    "n_bc": 200,
+    "lambda_bc": 10.0
+}

@@ -1,0 +1,30 @@
+{
+    "project_name": "out",
+    "output_root": "outputs",
+    "geometry_type": "square",
+    "nelem": 2,
+    "mesh": "quad",
+    "porder": 2,
+    "x_range": [
+        0.0,
+        1.0
+    ],
+    "y_range": [
+        0.0,
+        1.0
+    ],
+    "problem": "Poisson",
+    "source_type": "sine",
+    "source_value": 1.0,
+    "bc_type": "zero",
+    "epochs": 500,
+    "batch": 64,
+    "lr": 0.001,
+    "hidden": 64,
+    "num_layers": 4,
+    "activation": "silu",
+    "layer_norm": true,
+    "dropout": 0.0,
+    "nx": 2,
+    "ny": 2
+}

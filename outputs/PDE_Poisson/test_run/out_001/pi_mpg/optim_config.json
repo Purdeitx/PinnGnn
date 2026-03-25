@@ -1,0 +1,10 @@
+{
+    "weight_decay": 1e-05,
+    "scheduler_factor": 0.85,
+    "scheduler_patience": 20,
+    "monitor": "val_loss",
+    "patience": 500,
+    "min_pde_factor": 1,
+    "min_ramp": 0.0,
+    "max_ramp": 0.3
+}

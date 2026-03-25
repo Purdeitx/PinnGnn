@@ -1,0 +1,16 @@
+--- PINN Technical Summary ---
+Architecture: MLP
+Hidden neurons: 32
+Depth (hidden layers): 2
+Total trainable parameters: 12,737
+Capacity (Params / FEM DoFs): 509.48x
+
+--- Training Strategy ---
+Interior collocation points: 100 (Random Collocation)
+Boundary points: 200
+Boundary loss weight (lambda): 10.0
+Optimizer: Adam | LR: 0.001 | Epochs: 5000
+
+--- Final Results ---
+L2 Relative Error (vs FEM): 1.046987e-02
+Max Absolute Error: 1.102528e-02

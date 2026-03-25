@@ -1,0 +1,16 @@
+lambda_bc: 10.0
+lr: 0.001
+max_ramp: 0.3
+min_pde_factor: 1
+min_ramp: 0.0
+monitor: val_loss
+patience: 500
+physics: !!python/object:config.physics.PoissonGeneral
+  bc_type: zero
+  freq: 1.0
+  ops: !!python/object:utils.mathOps.GraphMathOps {}
+  scale: 1.0
+  source_type: sine
+scheduler_factor: 0.85
+scheduler_patience: 20
+weight_decay: 1.0e-05

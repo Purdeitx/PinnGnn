@@ -1,0 +1,11 @@
+--- Mesh Technical Summary ---
+Structure: QUAD | Order: P2
+Resolution: 2x2 elements
+Total DoFs (computational nodes): 25
+Mean Squared Error (nodes): 0.002519
+REPORT: quad P2
+                         Métrica         Valor
+0  Error Absoluto Máximo (L_inf)  1.041317e-02
+1  Error Absoluto Promedio (MAE)  1.007414e-03
+2       MSE (Mean Squared Error)  6.346953e-06
+3          RRMSE (Relative RMSE)     0.251932%

@@ -1,0 +1,45 @@
+activation: silu
+config:
+  activation: silu
+  batch: 32
+  bc_type: zero
+  dropout: 0.0
+  epochs: 5000
+  geometry_type: square
+  hidden: 32
+  hidden_dim: 64
+  lambda_bc: 10.0
+  layer_norm: false
+  lr: 0.001
+  mesh: quad
+  n_bc: 200
+  n_test: 100
+  n_train: 100
+  nelem: 2
+  num_layers: 2
+  output_root: outputs
+  porder: 2
+  problem: Poisson
+  project_name: out
+  source_type: sine
+  source_value: 1.0
+  use_fem_for_test: false
+  use_fem_for_train: false
+  x_range: &id001
+  - 0.0
+  - 1.0
+  y_range: &id002
+  - 0.0
+  - 1.0
+dropout: 0.0
+geometry: !!python/object:utils.geometry.SquareDomain
+  name: square
+  x_range: *id001
+  y_range: *id002
+hidden_dim: 64
+input_dim: 2
+lambda_bc: 100.0
+layer_norm: false
+lr: 0.001
+num_layers: 4
+output_dim: 1

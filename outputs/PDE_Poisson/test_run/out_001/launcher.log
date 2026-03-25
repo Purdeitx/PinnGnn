@@ -1,0 +1,158 @@
+2026-03-25 09:10:46,424 - INFO - Iniciando batería de experimentos en: outputs/PDE_Poisson/test_run/out_001
+2026-03-25 09:10:46,424 - INFO - 
+[1/6] Solving FEM on mesh 2x2...
+2026-03-25 09:10:46,424 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:10:46,426 - INFO - Initializing finished.
+2026-03-25 09:10:46,426 - INFO - Assembling 'laplace'.
+2026-03-25 09:10:46,429 - INFO - Assembling finished.
+2026-03-25 09:10:46,429 - INFO - Assembling 'mass'.
+2026-03-25 09:10:46,430 - INFO - Assembling finished.
+2026-03-25 09:10:46,430 - INFO - Assembling 'F_form'.
+2026-03-25 09:10:46,431 - INFO - Assembling finished.
+2026-03-25 09:10:46,432 - INFO - Solving linear system, shape=(9, 9).
+2026-03-25 09:10:46,432 - INFO - Solving done.
+2026-03-25 09:10:46,434 - INFO - --- Mesh Technical Summary ---
+Structure: QUAD | Order: P2
+Resolution: 2x2 elements
+Total DoFs (computational nodes): 25
+Mean Squared Error (nodes): 0.002519
+REPORT: quad P2
+                         Métrica         Valor
+0  Error Absoluto Máximo (L_inf)  1.041317e-02
+1  Error Absoluto Promedio (MAE)  1.007414e-03
+2       MSE (Mean Squared Error)  6.346953e-06
+3          RRMSE (Relative RMSE)     0.251932%
+
+2026-03-25 09:10:47,471 - INFO - >>> FEM results saved in: outputs/PDE_Poisson/test_run/out_001/fem
+2026-03-25 09:10:47,471 - INFO - 
+[2/6] Configuring PINN for Poisson...
+2026-03-25 09:10:47,899 - INFO - --- PINN Technical Summary ---
+Architecture: MLP
+Hidden neurons: 32
+Depth (hidden layers): 2
+Total trainable parameters: 12,737
+Capacity (Params / FEM DoFs): 509.48x
+
+--- Training Strategy ---
+Interior collocation points: 100 (Random Collocation)
+Boundary points: 200
+Boundary loss weight (lambda): 10.0
+Optimizer: Adam | LR: 0.001 | Epochs: 5000
+
+2026-03-25 09:19:13,733 - INFO - Save PINN model condiguration outputs/PDE_Poisson/test_run/out_001/pinn
+2026-03-25 09:19:14,922 - INFO - >>> PINN completed. Relative L2 error: 1.05%
+2026-03-25 09:19:14,922 - INFO - 
+[3/6] Configuring GNN for Poisson...
+2026-03-25 09:19:14,922 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:19:14,923 - INFO - Initializing finished.
+2026-03-25 09:19:14,924 - INFO - Assembling 'laplace'.
+2026-03-25 09:19:14,925 - INFO - Assembling finished.
+2026-03-25 09:19:14,925 - INFO - Assembling 'mass'.
+2026-03-25 09:19:14,925 - INFO - Assembling finished.
+2026-03-25 09:19:14,926 - INFO - Assembling 'F_form'.
+2026-03-25 09:19:14,926 - INFO - Assembling finished.
+2026-03-25 09:19:14,927 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:19:14,929 - INFO - Initializing finished.
+2026-03-25 09:19:14,929 - INFO - Assembling 'laplace'.
+2026-03-25 09:19:14,930 - INFO - Assembling finished.
+2026-03-25 09:19:14,930 - INFO - Assembling 'mass'.
+2026-03-25 09:19:14,931 - INFO - Assembling finished.
+2026-03-25 09:19:14,931 - INFO - Assembling 'F_form'.
+2026-03-25 09:19:15,213 - INFO - Assembling finished.
+2026-03-25 09:19:15,357 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:19:15,361 - INFO - Initializing finished.
+2026-03-25 09:19:15,363 - INFO - Assembling 'laplace'.
+2026-03-25 09:19:15,365 - INFO - Assembling finished.
+2026-03-25 09:19:15,368 - INFO - Assembling 'mass'.
+2026-03-25 09:19:15,369 - INFO - Assembling finished.
+2026-03-25 09:19:15,369 - INFO - Assembling 'F_form'.
+2026-03-25 09:19:15,471 - INFO - Assembling finished.
+2026-03-25 09:19:15,528 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:19:15,529 - INFO - Initializing finished.
+2026-03-25 09:19:15,531 - INFO - Assembling 'laplace'.
+2026-03-25 09:19:15,533 - INFO - Assembling finished.
+2026-03-25 09:19:15,533 - INFO - Assembling 'mass'.
+2026-03-25 09:19:15,535 - INFO - Assembling finished.
+2026-03-25 09:19:15,535 - INFO - Assembling 'F_form'.
+2026-03-25 09:19:15,965 - INFO - Assembling finished.
+2026-03-25 09:19:16,216 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:19:16,230 - INFO - Initializing finished.
+2026-03-25 09:19:16,230 - INFO - Assembling 'laplace'.
+2026-03-25 09:19:16,245 - INFO - Assembling finished.
+2026-03-25 09:19:16,245 - INFO - Assembling 'mass'.
+2026-03-25 09:19:16,259 - INFO - Assembling finished.
+2026-03-25 09:19:16,259 - INFO - Assembling 'F_form'.
+2026-03-25 09:19:17,358 - INFO - Assembling finished.
+2026-03-25 09:19:17,715 - INFO - --- FICHA TÉCNICA GNN (MeshGraphNet) ---
+Resoluciones Entrenamiento: [(4, 4), (8, 8), (12, 12), (16, 16)]
+Resolución Validación: 2x2
+Latent Dim: 32
+Mensajes (Passes): 6
+Capas MLP: 2 | Hidden: 32
+Total Parámetros Entrenables: 143,841
+Física: sine (val=1.0)
+---------------------------------------
+2026-03-25 09:21:48,268 - INFO - Saved GNN model configuration outputs/PDE_Poisson/test_run/out_001/gnn
+2026-03-25 09:21:57,098 - INFO - >>> GNN completed. Report available at outputs/PDE_Poisson/test_run/out_001/gnn
+2026-03-25 09:21:57,099 - INFO - 
+[4/6] Configuring Message Passing Graph for Poisson...
+2026-03-25 09:24:37,421 - INFO - Saved MPG model configuration outputs/PDE_Poisson/test_run/out_001/mpg
+2026-03-25 09:24:43,228 - INFO - >>> MPG completed. Report available at outputs/PDE_Poisson/test_run/out_001/mpg
+2026-03-25 09:24:43,228 - INFO - 
+[5/6] Configuring Physic Message Passing Graph for Poisson...
+2026-03-25 09:24:43,229 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:24:43,230 - INFO - Initializing finished.
+2026-03-25 09:24:43,230 - INFO - Assembling 'laplace'.
+2026-03-25 09:24:43,231 - INFO - Assembling finished.
+2026-03-25 09:24:43,231 - INFO - Assembling 'mass'.
+2026-03-25 09:24:43,232 - INFO - Assembling finished.
+2026-03-25 09:24:43,232 - INFO - Assembling 'F_form'.
+2026-03-25 09:24:43,233 - INFO - Assembling finished.
+2026-03-25 09:24:43,234 - INFO - Solving linear system, shape=(49, 49).
+2026-03-25 09:24:43,234 - INFO - Solving done.
+2026-03-25 09:24:43,235 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:24:43,236 - INFO - Initializing finished.
+2026-03-25 09:24:43,236 - INFO - Assembling 'laplace'.
+2026-03-25 09:24:43,237 - INFO - Assembling finished.
+2026-03-25 09:24:43,237 - INFO - Assembling 'mass'.
+2026-03-25 09:24:43,239 - INFO - Assembling finished.
+2026-03-25 09:24:43,239 - INFO - Assembling 'F_form'.
+2026-03-25 09:24:43,460 - INFO - Assembling finished.
+2026-03-25 09:24:43,538 - INFO - Solving linear system, shape=(225, 225).
+2026-03-25 09:24:43,538 - INFO - Solving done.
+2026-03-25 09:24:43,569 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:24:43,573 - INFO - Initializing finished.
+2026-03-25 09:24:43,573 - INFO - Assembling 'laplace'.
+2026-03-25 09:24:43,574 - INFO - Assembling finished.
+2026-03-25 09:24:43,575 - INFO - Assembling 'mass'.
+2026-03-25 09:24:43,577 - INFO - Assembling finished.
+2026-03-25 09:24:43,578 - INFO - Assembling 'F_form'.
+2026-03-25 09:24:43,792 - INFO - Assembling finished.
+2026-03-25 09:24:43,881 - INFO - Solving linear system, shape=(529, 529).
+2026-03-25 09:24:43,882 - INFO - Solving done.
+2026-03-25 09:24:43,899 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:24:43,900 - INFO - Initializing finished.
+2026-03-25 09:24:43,900 - INFO - Assembling 'laplace'.
+2026-03-25 09:24:43,908 - INFO - Assembling finished.
+2026-03-25 09:24:43,908 - INFO - Assembling 'mass'.
+2026-03-25 09:24:43,910 - INFO - Assembling finished.
+2026-03-25 09:24:43,910 - INFO - Assembling 'F_form'.
+2026-03-25 09:24:44,180 - INFO - Assembling finished.
+2026-03-25 09:24:44,376 - INFO - Solving linear system, shape=(961, 961).
+2026-03-25 09:24:44,387 - INFO - Solving done.
+2026-03-25 09:24:44,419 - INFO - Initializing CellBasis(MeshQuad1, ElementQuad2)
+2026-03-25 09:24:44,441 - INFO - Initializing finished.
+2026-03-25 09:24:44,442 - INFO - Assembling 'laplace'.
+2026-03-25 09:24:44,458 - INFO - Assembling finished.
+2026-03-25 09:24:44,458 - INFO - Assembling 'mass'.
+2026-03-25 09:24:44,473 - INFO - Assembling finished.
+2026-03-25 09:24:44,473 - INFO - Assembling 'F_form'.
+2026-03-25 09:24:46,087 - INFO - Assembling finished.
+2026-03-25 09:24:46,833 - INFO - Solving linear system, shape=(9801, 9801).
+2026-03-25 09:24:46,937 - INFO - Solving done.
+2026-03-25 09:41:19,917 - INFO - Saved MPG model configuration outputs/PDE_Poisson/test_run/out_001/pi_mpg
+2026-03-25 09:41:25,860 - INFO - >>> pi-MPG completed. Report available at outputs/PDE_Poisson/test_run/out_001/pi_mpg
+2026-03-25 09:41:25,860 - INFO - 
+[6/6] Configuring Physic Mesh Graph Net for Poisson...
+2026-03-25 09:44:43,602 - INFO - Saved MPG model configuration outputs/PDE_Poisson/test_run/out_001/pi_mgn
+2026-03-25 09:44:50,266 - INFO - >>> Pi-MGN completed. Report available at outputs/PDE_Poisson/test_run/out_001/pi_mgn

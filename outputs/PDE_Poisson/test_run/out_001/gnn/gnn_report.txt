@@ -1,0 +1,9 @@
+--- FICHA TÉCNICA GNN (MeshGraphNet) ---
+Resoluciones Entrenamiento: [(4, 4), (8, 8), (12, 12), (16, 16)]
+Resolución Validación: 2x2
+Latent Dim: 32
+Mensajes (Passes): 6
+Capas MLP: 2 | Hidden: 32
+Total Parámetros Entrenables: 143,841
+Física: sine (val=1.0)
+---------------------------------------
