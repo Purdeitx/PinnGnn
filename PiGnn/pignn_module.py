@@ -17,7 +17,7 @@ class PhysicsEdgeProcessor(nn.Module):
     """Computes edge updates based on connected nodes and current edge features."""
     def __init__(self, input_dim, output_dim, hidden_dim, num_layers, 
                  activation='silu', dropout=0.0, layer_norm=False, 
-                 symmetric=True,
+                 symmetric=False,
                  **kwargs):
         super().__init__()
         self.symmetric = symmetric
@@ -130,6 +130,8 @@ class PhysicsMessagePassing(nn.Module):
         source = kwargs.get('source', False)
         symmetric = kwargs.get('symmetric', False)
         self.num_pases = msg_passes
+        self.node_out=node_out
+        self.edge_out=edge_out
 
         # dynamic input dimmensions 
         edge_input_dim = (2 * node_dim) + edge_dim
@@ -140,12 +142,12 @@ class PhysicsMessagePassing(nn.Module):
 
         # Initialize processors using the skeleton style
         self.edge_proc = PhysicsEdgeProcessor(hidden_dim=e_h_dim, num_layers=e_n_lay, 
-                                       input_dim=edge_input_dim, output_dim=edge_out,
+                                       input_dim=edge_input_dim, output_dim=self.edge_out,
                                        activation=e_custom_fnc, dropout=dropout, layer_norm=layer_norm,
                                        symmetric=symmetric)
         
         self.node_proc = PhysicsNodeProcessor(hidden_dim=n_h_dim, num_layers=n_n_lay, 
-                                       input_dim=node_input_dim, output_dim=node_out,
+                                       input_dim=node_input_dim, output_dim=self.node_out,
                                        activation=n_custom_fnc, dropout=dropout, layer_norm=layer_norm,
                                        source=source) 
 
@@ -169,7 +171,7 @@ class PhysicsMessagePassing(nn.Module):
         return g_out
     
 class PhysicsSystem(pl.LightningModule):
-    def __init__(self, model, lr=1e-3, physics=None, lambda_bc=1.0, lambda_pde=1.0, 
+    def __init__(self, model, lr=1e-3, physics=None, lambda_bc=1.0,
                  **kwargs):
         super().__init__()
         self.save_hyperparameters(ignore=['model'])
@@ -177,16 +179,14 @@ class PhysicsSystem(pl.LightningModule):
         self.model = model
         self.lr = lr
         self.lambda_bc = lambda_bc
-        self.lambda_pde = lambda_pde
-        self.pde_factor = 1e-4
+        self.lambda_pde = kwargs.get('lambda_pde', 1.0)
+        self.pde_factor = kwargs.get('pde_factor', 1.0e-4)
         self.loss_fn = nn.MSELoss()
         # Opciones de residuo
         self.use_flux_residual = kwargs.get('use_flux_residual', False)
-        self.strong_form = kwargs.get('strong_form', False) 
         self.autograd = kwargs.get('autograd', False)      # Activa derivadas automáticas
         self.lambda_Fick = kwargs.get('lambda_Fick', 1.0)
         self.strong_form = kwargs.get('strong_form', True)
-        self.autograd = kwargs.get('autograd', False)
         # Opciones para rampa de activacion loss_pde progresiva
         self.min_pde_factor = kwargs.get('min_pde_factor', 1e-4)
         self.min_ramp = kwargs.get('min_ramp', 0.10)
@@ -205,8 +205,10 @@ class PhysicsSystem(pl.LightningModule):
         g = self.model(g) 
 
         # predition is the last feature
-        u_pred = g.x[:, -1:]
-        flux_pred = g.edge_attr[:, -1:]
+        u_pred = g.x[:, -self.model.node_out:]
+        flux_pred = g.edge_attr[:, -self.model.edge_out:]
+        # TODO: multi-state — verificar que u_pred y flux_pred se consumen correctamente
+        #       aguas abajo cuando node_out/edge_out > 1
 
         return u_pred, flux_pred
 
@@ -249,6 +251,11 @@ class PhysicsSystem(pl.LightningModule):
         mask = batch.is_bc.bool()
         loss_bc = self.loss_fn(u_pred[mask], batch.u_bc[mask])
 
+        # TODO: multi-state — con varias variables de estado, compute_graph_residual
+        #       puede devolver un tensor [N, node_out]; revisar reducción 
+        #       (mean por variable o pérdida ponderada)
+        # TODO: multi-state — batch.u_bc debe tener shape [N_bc, node_out];
+        #       revisar construcción del grafo/dataset para cada problema
         loss = self.pde_factor * self.lambda_pde * loss_pde + self.lambda_bc * loss_bc 
         
         self.log('train_loss', loss, prog_bar=True, batch_size=1)

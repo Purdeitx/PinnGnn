@@ -1,0 +1,48 @@
+Seed set to 42
+Using custom physics: <config.physics.PoissonGeneral object at 0x79f1d490e590>
+Using custom physics: <config.physics.PoissonGeneral object at 0x79f1d490d240>
+Using custom physics: <config.physics.PoissonGeneral object at 0x79f1d490ca30>
+Using custom physics: <config.physics.PoissonGeneral object at 0x79f1d490e590>
+Using custom physics: <config.physics.PoissonGeneral object at 0x79f1d490ca90>
+Using custom physics: <config.physics.PoissonGeneral object at 0x79f1d490e890>
+Using custom physics: <config.physics.PoissonGeneral object at 0x79f1d490ca30>
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+You are using a CUDA device ('NVIDIA GeForce RTX 5090') that has Tensor Cores. To properly utilize them, you should set `torch.set_float32_matmul_precision('medium' | 'high')` which will trade-off precision for performance. For more details, read https://pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
+/home/purdeitx/miniconda3/envs/PinnGnn/lib/python3.10/site-packages/pytorch_lightning/loggers/wandb.py:400: There is a wandb run already in progress and newly created instances of `WandbLogger` will reuse this run. If this is not desired, call `wandb.finish()` before instantiating `WandbLogger`.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃[1;35m [0m[1;35m [0m[1;35m [0m┃[1;35m [0m[1;35mName   [0m[1;35m [0m┃[1;35m [0m[1;35mType                 [0m[1;35m [0m┃[1;35m [0m[1;35mParams[0m[1;35m [0m┃[1;35m [0m[1;35mMode [0m[1;35m [0m┃[1;35m [0m[1;35mFLOPs[0m[1;35m [0m┃
+┡━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│[2m [0m[2m0[0m[2m [0m│ model   │ PhysicsMessagePassing │ 18.6 K │ train │     0 │
+│[2m [0m[2m1[0m[2m [0m│ loss_fn │ MSELoss               │      0 │ train │     0 │
+└───┴─────────┴───────────────────────┴────────┴───────┴───────┘
+[1mTrainable params[0m: 18.6 K
+[1mNon-trainable params[0m: 0
+[1mTotal params[0m: 18.6 K
+[1mTotal estimated model params size (MB)[0m: 0
+[1mModules in train mode[0m: 18
+[1mModules in eval mode[0m: 0
+[1mTotal FLOPs[0m: 0
+[2K/home/purdeitx/miniconda3/envs/PinnGnn/lib/python3.10/site-packages/pytorch_lightning/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+[2K/home/purdeitx/miniconda3/envs/PinnGnn/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:434: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=31` in the `DataLoader` to improve
+performance.
+[2K/home/purdeitx/miniconda3/envs/PinnGnn/lib/python3.10/site-packages/pytorch_lightning/utilities/data.py:79: Trying to infer the `batch_size` from an ambiguous collection. The batch size we found is 1089. To avoid any miscalculations, use `self.log(..., batch_size=batch_size)`.
+[2K/home/purdeitx/miniconda3/envs/PinnGnn/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:434: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=31` in the `DataLoader` to improve
+performance.
+[2KEpoch 30/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m51.54it/s[0m [3mv_num: xaer - mse_lapl: 61.623 train_loss: 63.569 loss_pde: 61.623 loss_bc: 0.019 gradient/total_norm_sq: 910.574 val_loss: 0.226 val_rel: 0.979[0m_loss: 0.226 val_rel: 0.979[0m[0mm[0m
+[2KEpoch 55/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m46.75it/s[0m [3mv_num: xaer - mse_lapl: 20.584 train_loss: 21.975 loss_pde: 20.584 loss_bc: 0.014 gradient/total_norm_sq: 1319.440 val_loss: 0.470 val_rel: 1.414[0mloss: 0.470 val_rel: 1.414[0mm0m
+[2KEpoch 110/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m76.74it/s[0m [3mv_num: xaer - mse_lapl: 5.940 train_loss: 7.618 loss_pde: 5.940 loss_bc: 0.017 gradient/total_norm_sq: 1359.733 val_loss: 0.093 val_rel: 0.628[0moss: 0.093 val_rel: 0.628[0m0m0mm
+[2KEpoch 342/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m40.43it/s[0m [3mv_num: xaer - mse_lapl: 4.116 train_loss: 4.265 loss_pde: 4.116 loss_bc: 0.001 gradient/total_norm_sq: 552.236 val_loss: 0.001 val_rel: 0.064[0mloss: 0.001 val_rel: 0.064[0mmm0mm
+[2KEpoch 358/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m67.61it/s[0m [3mv_num: xaer - mse_lapl: 0.762 train_loss: 0.904 loss_pde: 0.762 loss_bc: 0.001 gradient/total_norm_sq: 523.208 val_loss: 0.015 val_rel: 0.253[0m_loss: 0.015 val_rel: 0.253[0m[0m
+[2KEpoch 440/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m38.66it/s[0m [3mv_num: xaer - mse_lapl: 0.756 train_loss: 0.865 loss_pde: 0.756 loss_bc: 0.001 gradient/total_norm_sq: 286.246 val_loss: 0.013 val_rel: 0.236[0mloss: 0.013 val_rel: 0.236[0mm
+[2KEpoch 530/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m40.39it/s[0m [3mv_num: xaer - mse_lapl: 1.806 train_loss: 1.918 loss_pde: 1.806 loss_bc: 0.001 gradient/total_norm_sq: 739.230 val_loss: 0.011 val_rel: 0.214[0mloss: 0.011 val_rel: 0.214[0mm
+[2KEpoch 637/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m40.02it/s[0m [3mv_num: xaer - mse_lapl: 1.228 train_loss: 1.320 loss_pde: 1.228 loss_bc: 0.001 gradient/total_norm_sq: 555.037 val_loss: 0.012 val_rel: 0.229[0mloss: 0.012 val_rel: 0.229[0mm
+[2KEpoch 741/2999 [38;2;98;6;224m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m 5/5 [2m0:00:00 • 0:00:00[0m [2;4m71.35it/s[0m [3mv_num: xaer - mse_lapl: 0.778 train_loss: 0.867 loss_pde: 0.778 loss_bc: 0.001 gradient/total_norm_sq: 86.537 val_loss: 0.012 val_rel: 0.228[0m_loss: 0.008 val_rel: 0.188[0m
+[?25hCorrelación GT vs GNN: 0.2643
+Correlación GT vs GNN: 0.9806
+[val_fine]  MSE=1.2245e-02  RelErr=2.2823e-01
+Correlación GT vs GNN: 0.1146
+Correlación GT vs GNN: 0.2785
+[val_ood]  MSE=6.6957e-01  RelErr=1.7184e+00

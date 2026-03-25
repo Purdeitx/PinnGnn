@@ -502,3 +502,27 @@ def plot_flux_symmetry(flux_gnn, graph, physics, title="Flux Symmetry Check"):
 
     plt.tight_layout()
     return fig
+
+def plot_train_test_comparison(err_train, err_test, model_name="PiGNN"):
+    """
+    Genera un boxplot comparativo de los errores relativos L2 
+    entre el conjunto de entrenamiento y el de test.
+    """
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    data = [err_train, err_test]
+    labels = ['Train Set', 'Test Set (Visto)']
+    
+    bplot = ax.boxplot(data, patch_artist=True, labels=labels)
+    
+    colors = ['#add8e6', '#ffb6c1'] # Azul claro y Rosa claro
+    for patch, color in zip(bplot['boxes'], colors):
+        patch.set_facecolor(color)
+        
+    ax.set_yscale('log')
+    ax.set_ylabel('Relative L2 Error (Log Scale)')
+    ax.set_title(f'Generalización del Operador: {model_name}')
+    ax.grid(True, which="both", ls="-", alpha=0.3)
+    
+    plt.tight_layout()
+    return fig

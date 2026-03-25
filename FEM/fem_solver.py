@@ -78,10 +78,10 @@ def get_problem(geometry, physics=None, nx=4, ny=4, porder=1, mesh='tri', custom
     # Physics and Assembly 
     # phys = PoissonPhysics(source_type=source_type, scale=scale)
     if physics is not None:
-        print(f"Using custom physics: {physics}")
+        # print(f"Using custom physics: {physics}")
         phys = physics 
     else:
-        print(f"Using default PoissonPhysics with source_type='sine' and scale=1.")
+        # print(f"Using default PoissonPhysics with source_type='sine' and scale=1.")
         phys = PoissonGeneral()
 
     K = asm(laplace, basis)

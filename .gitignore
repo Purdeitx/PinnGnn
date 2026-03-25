@@ -19,3 +19,6 @@ env/
 # Data and large FEM outputs (optional but recommended)
 *.mat
 *.npz
+
+# Scripts
+launcherWandB.py
