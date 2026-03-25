@@ -4,8 +4,12 @@ import torch
 import numpy as np
 import torch
 import enum
+import random
+import pandas as pd
 from torch_geometric.data import Data
 from config.physics import PoissonGeneral
+from utils.geometry import geometry_factory
+from FEM.fem_solver import get_problem, solve_problem
 
 def decompose_graph(graph):
     # Devolvemos x, edge_index y edge_attr
@@ -73,7 +77,7 @@ def set_edge_props(graph, edge_props=None):
 
     return graph
 
-def FEM_to_PiGnnData(prob, node_out=1, edge_out=1, node_props=1, edge_props=1):
+def FEM_to_PiGnnData(prob, node_out=1, edge_out=1, node_props=1, edge_props=1, use_exact_as_target=False):
     phys = prob['physics']
     pos = torch.tensor(prob['doflocs'], dtype=torch.float32)
     num_nodes = pos.shape[0]
@@ -128,15 +132,20 @@ def FEM_to_PiGnnData(prob, node_out=1, edge_out=1, node_props=1, edge_props=1):
         ], dim=-1)
 
     # --- CONDICIONES DE CONTORNO ---
+    u_fem = solve_problem(prob)
+    u_fem_torch = torch.tensor(u_fem, dtype=torch.float32).view(-1, 1)
+    u_exact = prob.get('u_exact')
+    if u_exact is not None:
+        u_exact_torch = torch.tensor(u_exact, dtype=torch.float32).view(-1, 1)
+    else:
+        u_exact_torch = u_fem_torch.clone()
+        
+    y_target = u_exact_torch if (use_exact_as_target and u_exact is not None) else u_fem_torch
+
     u_bc = torch.zeros((num_nodes, 1), dtype=torch.float32)
     if hasattr(phys, 'boundary_condition'):
         mask_bc = (node_type == 1.0).view(-1)
         u_bc[mask_bc] = phys.boundary_condition(pos[mask_bc])
-
-    # Store u_exact if available for validation
-    y = None
-    if prob.get('u_exact') is not None:
-        y = torch.tensor(prob['u_exact'], dtype=torch.float32).view(-1, 1)
 
     data = Data(
         x=node_attr,            # Atributos estáticos de nodo
@@ -148,7 +157,7 @@ def FEM_to_PiGnnData(prob, node_out=1, edge_out=1, node_props=1, edge_props=1):
         F=torch.tensor(prob['F'], dtype=torch.float32).view(-1, 1),
         node_volumes=torch.tensor(prob['M'].diagonal(), dtype=torch.float32).view(-1, 1),
         f_pointwise=f_pointwise,
-        y=y,
+        y=y_target,
     )
 
     # actualizamos propiedades
@@ -157,62 +166,93 @@ def FEM_to_PiGnnData(prob, node_out=1, edge_out=1, node_props=1, edge_props=1):
 
     return data
 
-def FEM_to_PiGnnData_BK(prob):
+def generate_pignn_dataset(n_samples=50, 
+                           physics_class=PoissonGeneral,  # Pasamos la CLASE
+                           physics_fixed_args={'bc_type': 'exact'},
+                           sources=['sine', 'gaussian_peak'], 
+                           mesh_types=['quad', 'tri'],
+                           scale_range=(1.0, 5.0),
+                           freq_range=(1.0, 2.5),
+                           domain_range=(-1.0, 1.0),
+                           res_range=(12, 32),
+                           get_resume=False):
+    dataset = []
+    summary_list = []
+    
+    for i in range(n_samples):
+        res = random.randint(*res_range)
+        src = random.choice(sources)
+        m_type = random.choice(mesh_types)
+        scale = random.uniform(*scale_range)
+        freq = random.uniform(*freq_range)
+        
+        x_coords = sorted([random.uniform(*domain_range) for _ in range(2)])
+        y_coords = sorted([random.uniform(*domain_range) for _ in range(2)])
+        # (Añadir validación de ancho mínimo aquí si se desea)
+
+        geom = geometry_factory('square', x_range=x_coords, y_range=y_coords)
+        
+        # --- INSTANCIACIÓN DINÁMICA ---
+        # Aquí es donde ocurre la magia: creamos la física sea cual sea la clase pasada
+        phys = physics_class(
+            source_type=src, 
+            scale=scale, 
+            freq=freq,
+            **physics_fixed_args
+        )
+        
+        prob = get_problem(geometry=geom, physics=phys, nx=res, ny=res, mesh=m_type)
+        data = FEM_to_PiGnnData(prob)
+        dataset.append(data)
+        
+        if get_resume:
+            summary_list.append({
+                'ID': i, 'Source': src, 'Mesh': m_type, 
+                'Nodes': data.num_nodes, 'Scale': round(scale, 2), 'Freq': round(freq, 2)
+            })
+
+    if get_resume:
+        print("\n DATASET AGNOSTICO GENERADO (Resumen)")
+        print(pd.DataFrame(summary_list).to_string(index=False))
+        
+    return dataset
+
+def generate_benchmark_datasets(res_range=(12, 24), 
+                                mesh_types=['quad'], samples_per_domain=10):
     """
-    Convierte el output de FEM en un objeto Data compatible con MeshGraphNet.
+    Genera un set de entrenamiento fijo basado en dominios específicos
+    y un set de validación OOD (0-4).
     """
-    basis = prob['basis']
-    phys = prob['physics']
+    # 1. Definición de los dominios de entrenamiento "de seguridad"
+    train_specs = [
+        ([-1.0, 1.0], [-1.0, 1.0]),
+        ([0.0, 1.0], [0.0, 1.0]),
+        ([0.0, 2.0], [0.0, 2.0])
+    ]
     
-    # Node positions [x, y]
-    pos = torch.tensor(prob['doflocs'], dtype=torch.float32)
-    num_nodes = pos.shape[0]
-
-    # Conectivity from K
-    K_coo = prob['K'].tocoo()
-    edge_index = torch.tensor(np.vstack((K_coo.row, K_coo.col)), dtype=torch.long)
+    train_graphs = []
+    print("Generando Benchmark Training Set...")
     
-    # Edge attributes: vectors and distances
-    senders, receivers = edge_index
-    diff = pos[receivers] - pos[senders]
-    dist = torch.norm(diff, dim=-1, keepdim=True)
-    edge_geom = torch.cat([diff, dist], dim=-1)
-    flux_init = torch.zeros((edge_geom.size(0), 1))
-    edge_attr = torch.cat([edge_geom, flux_init], dim=-1)
-
-    # BC mask and bc values 
-    is_bc = torch.zeros((num_nodes, 1), dtype=torch.float32)
-    is_bc[prob['boundary_indices']] = 1.0
+    for x_rng, y_rng in train_specs:
+        for i in range(samples_per_domain):
+            # Variamos la resolución para que aprenda a ser agnóstico a la densidad
+            res = random.randint(*res_range)
+            m_type = random.choice(mesh_types)
+            
+            geom = geometry_factory('square', x_range=x_rng, y_range=y_rng)
+            # Física fija: Seno, Amp 1, Frec 1, BC 0
+            phys = PoissonGeneral(source_type='sine', scale=1.0, freq=1.0, bc_type='zero')
+            prob = get_problem(geom, phys, nx=res, ny=res)
+            
+            # FEM_to_PiGnnData calcula u_fem automáticamente como target 'y'
+            data = FEM_to_PiGnnData(prob)
+            train_graphs.append(data)
+            
+    # 2. Generación del caso de validación OOD (Extrapolación 0-4)
+    print("Generando Caso de Validación OOD [0, 4]...")
+    geom_ood = geometry_factory('square', x_range=[0.0, 4.0], y_range=[0.0, 4.0])
+    phys_ood = PoissonGeneral(source_type='sine', scale=1.0, freq=1.0, bc_type='zero')
+    prob_ood = get_problem(geom_ood, phys_ood, nx=40, ny=40)
+    val_graph_ood = FEM_to_PiGnnData(prob_ood)
     
-    u_bc = torch.zeros((num_nodes, 1), dtype=torch.float32)
-    if hasattr(phys, 'boundary_condition'):
-        mask_bool = is_bc.bool().view(-1)
-        u_bc[mask_bool] = phys.boundary_condition(pos[mask_bool])
-
-    # PDE terms (Integrated Source term & control volumes)
-    F_tensor = torch.tensor(prob['F'], dtype=torch.float32).view(-1, 1)
-    node_volumes = torch.tensor(prob['M'].diagonal(), dtype=torch.float32).view(-1, 1)
-
-    # Node features: [pos_x, pos_y, is_boundary_mask, u_current]
-    # Initialized u_current a 0.0
-    u_init = torch.zeros((num_nodes, 1), dtype=torch.float32)
-    node_attr = torch.cat([pos, is_bc, u_init], dim=-1) 
-
-    # Store u_exact if available for validation
-    y = None
-    if prob.get('u_exact') is not None:
-        y = torch.tensor(prob['u_exact'], dtype=torch.float32).view(-1, 1)
-
-    data = Data(
-        x=node_attr,
-        edge_index=edge_index,
-        edge_attr=edge_attr,
-        pos=pos,
-        y=y,           # Ground truth para validación
-        is_bc=is_bc,   # Máscara 0-1
-        u_bc=u_bc,     # Valores objetivos en la frontera
-        F=F_tensor,    # Término f de la PDE (integrado)
-        node_volumes=node_volumes
-    )
-
-    return data
+    return train_graphs, val_graph_ood

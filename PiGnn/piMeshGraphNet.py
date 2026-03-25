@@ -146,6 +146,7 @@ class PhysMeshGraphNet(nn.Module):
         # 2. Processor: core message passing logic   
         self.processor = PhysicsMessagePassing(
                 node_dim=self.n_dim, edge_dim=self.e_dim, pos_dim=pos_dim,
+                node_out=self.n_dim, edge_out=self.e_dim, 
                 activation=activation,
                 msg_pases=self.num_pases,
                 hidden=hidden, 

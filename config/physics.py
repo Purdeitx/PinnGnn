@@ -10,34 +10,12 @@ def scatter_mean(src, index, dim=0, dim_size=None):
     return scatter(src, index, dim=dim, dim_size=dim_size, reduce='mean')
 
 class PoissonGeneral:
-    def __init__(self, source_type='sine', scale=1.0, bc_type='zero'):
+    def __init__(self, source_type='sine', scale=1.0, bc_type='zero', freq=1.0):
         self.source_type = source_type
         self.scale = scale
         self.bc_type = bc_type
+        self.freq = freq
         self.ops = GraphMathOps()
-
-    def exact_solution(self, x):
-        """Calcula la solución analítica unificando todo el cálculo en PyTorch."""
-        is_numpy = isinstance(x, np.ndarray)
-        # Convertimos a tensor si es numpy (asegurando float32)
-        x_t = torch.tensor(x, dtype=torch.float32) if is_numpy else x
-        
-        scale = self.scale
-        
-        if self.source_type == 'sine':
-            out = scale * torch.prod(torch.sin(torch.pi * x_t), dim=1, keepdim=True)
-            
-        elif self.source_type == 'linear':
-            out = scale * torch.sum(x_t, dim=1, keepdim=True)
-            
-        elif self.source_type == 'poly2':
-            out = scale * torch.sum(x_t**2, dim=1, keepdim=True)
-            
-        else:
-            raise NotImplementedError(f"Solución exacta no implementada para: {self.source_type}")
-
-        # Devolvemos numpy o tensor según lo que entró
-        return out.detach().cpu().numpy() if is_numpy else out
 
     def source_term(self, x):
         """Calcula el término fuente unificando todo el cálculo en PyTorch."""
@@ -45,17 +23,30 @@ class PoissonGeneral:
         x_t = torch.tensor(x, dtype=torch.float32) if is_numpy else x
         
         dims = x_t.shape[1]
-        scale = self.scale
+        A = self.scale
+        w = self.freq
         
         if self.source_type == 'sine':
-            u = torch.prod(torch.sin(torch.pi * x_t), dim=1, keepdim=True)
-            out = scale * dims * (torch.pi**2) * u
-            
+            # f(x) = scale * dims * pi^2 * f^2 * sin(pi*f*x)*sin(pi*f*y)
+            u = torch.prod(torch.sin(w * torch.pi * x_t), dim=1, keepdim=True)
+            out = A * dims * (w * torch.pi**2) * u
+        
+        elif self.source_type == 'gaussian_peak':
+            # Fuente localizada en el centro (o donde quieras)
+            center = torch.tensor([0.5, 0.5], device=x_t.device)
+            dist_sq = torch.sum((x_t - center)**2, dim=1, keepdim=True)
+            sigma = 0.1
+            out = A * torch.exp(-dist_sq / (2 * sigma**2))
+
+        elif self.source_type == 'step':
+            # Fuente tipo escalón: carga solo en una mitad del dominio
+            out = torch.where(x_t[:, 0:1] > 0.5, A, 0.0)
+
         elif self.source_type == 'linear':
             out = torch.zeros((x_t.shape[0], 1), device=x_t.device)
             
         elif self.source_type == 'poly2':
-            f_val = - 2.0 * dims * scale
+            f_val = - 2.0 * dims * A
             out = torch.full((x_t.shape[0], 1), f_val, device=x_t.device)
             
         else:
@@ -63,6 +54,69 @@ class PoissonGeneral:
 
         return out.detach().cpu().numpy() if is_numpy else out
     
+    def boundary_condition(self, x):  
+        """
+        Aplica la condición de contorno según el bc_type configurado.
+        Todo el cálculo interno se hace en PyTorch.
+        """
+        # TODO: condiciones de contorno más complejas (ej. u=0 en x=0, solución exacta en el resto)
+        # is_bc actual 0-1, 0 interior, 1 frontera con Dirichlet u=0
+        # is_bc pro:
+        # 0 - nodo interior
+        # 1 - nodo de frontera, condicion Dirichlet u = u0
+        # 2 - nodo de frontera, condicion Neumann du/dn = g0                (no implementada aún)
+        # 3 - nodo de frontera, condicion Neumann flujo libre, du/dn = 0    (no implementada aún)
+        is_numpy = isinstance(x, np.ndarray)
+        x_t = torch.tensor(x, dtype=torch.float32) if is_numpy else x
+        
+        if self.bc_type == 'exact':
+            out = self.exact_solution(x_t)
+            # Si no hay analítica, forzamos u=0 en la frontera
+            if out is None:
+                out = torch.zeros((x_t.shape[0], 1), device=x_t.device)
+            
+        elif self.bc_type == 'zero':
+            out = torch.zeros((x_t.shape[0], 1), device=x_t.device)
+            
+        elif self.bc_type == 'zero_x0':
+            # 0 en la pared izquierda (x=0). El resto asume la solución exacta 
+            # TODO: usar solucion exacta es hacer trampa, pero vamos paso a paso
+            out = self.exact_solution(x_t)
+            x_min = torch.min(x_t[:, 0])
+            mask_x0 = torch.abs(x_t[:, 0:1] - x_min) < 1e-7
+            out[mask_x0] = 0.0
+            
+        else:
+            raise NotImplementedError(f"Tipo de condición de contorno no soportada: {self.bc_type}")
+            
+        # Devolvemos numpy o tensor según la entrada original
+        return out.detach().cpu().numpy() if is_numpy else out
+    
+    def exact_solution(self, x):
+        """Calcula la solución analítica unificando todo el cálculo en PyTorch."""
+        is_numpy = isinstance(x, np.ndarray)
+        # Convertimos a tensor si es numpy (asegurando float32)
+        x_t = torch.tensor(x, dtype=torch.float32) if is_numpy else x
+        
+        A = self.scale
+        w = self.freq
+        
+        if self.source_type == 'sine':
+            out = A * torch.prod(torch.sin(w * torch.pi * x_t), dim=1, keepdim=True)
+            
+        elif self.source_type == 'linear':
+            out = A * torch.sum(x_t, dim=1, keepdim=True)
+            
+        elif self.source_type == 'poly2':
+            out = A * torch.sum(x_t**2, dim=1, keepdim=True)
+            
+        else:
+            return None
+            # raise NotImplementedError(f"Solución exacta no implementada para: {self.source_type}")
+
+        # Devolvemos numpy o tensor según lo que entró
+        return out.detach().cpu().numpy() if is_numpy else out
+
     def analytical_derivatives(self, x):
         """
         Calcula de forma exacta (analítica) el gradiente, la divergencia del flujo
@@ -111,41 +165,6 @@ class PoissonGeneral:
         return grad, divergence, laplacian
 
     
-    def boundary_condition(self, x):  
-        """
-        Aplica la condición de contorno según el bc_type configurado.
-        Todo el cálculo interno se hace en PyTorch.
-        """
-        # TODO: condiciones de contorno más complejas (ej. u=0 en x=0, solución exacta en el resto)
-        # is_bc actual 0-1, 0 interior, 1 frontera con Dirichlet u=0
-        # is_bc pro:
-        # 0 - nodo interior
-        # 1 - nodo de frontera, condicion Dirichlet u = u0
-        # 2 - nodo de frontera, condicion Neumann du/dn = g0                (no implementada aún)
-        # 3 - nodo de frontera, condicion Neumann flujo libre, du/dn = 0    (no implementada aún)
-        is_numpy = isinstance(x, np.ndarray)
-        x_t = torch.tensor(x, dtype=torch.float32) if is_numpy else x
-        
-        if self.bc_type == 'exact':
-            out = self.exact_solution(x_t)
-            
-        elif self.bc_type == 'zero':
-            out = torch.zeros((x_t.shape[0], 1), device=x_t.device)
-            
-        elif self.bc_type == 'zero_x0':
-            # 0 en la pared izquierda (x=0). El resto asume la solución exacta 
-            # TODO: usar solucion exacta es hacer trampa, pero vamos paso a paso
-            out = self.exact_solution(x_t)
-            x_min = torch.min(x_t[:, 0])
-            mask_x0 = torch.abs(x_t[:, 0:1] - x_min) < 1e-7
-            out[mask_x0] = 0.0
-            
-        else:
-            raise NotImplementedError(f"Tipo de condición de contorno no soportada: {self.bc_type}")
-            
-        # Devolvemos numpy o tensor según la entrada original
-        return out.detach().cpu().numpy() if is_numpy else out
-
     def compute_pde_residual(self, x, u, grads):
         """R = Δu + f"""
         laplacian = self.ops.laplacian_autograd(u=u, x=x, grads=grads)
@@ -166,7 +185,7 @@ class PoissonGeneral:
             laplacian = self.ops.laplacian_graph(u_pred, graph)
 
         if strong_form:
-            f_pointwise = self.source_term(graph.pos)
+            f_pointwise = graph.f_pointwise
             residual = laplacian + f_pointwise
         else:
             node_volumes = getattr(graph, 'node_volumes', torch.ones((num_nodes, 1), device=u_pred.device))
@@ -215,7 +234,7 @@ class PoissonGeneral:
             divergence = self.ops.divergence_edge_aggregated(flux_pred, graph) # (N, 1)
 
         # 3. CÁLCULO DEL RESIDUO FINAL
-        f_target = self.source_term(graph.pos) if strong_form else graph.F
+        f_target = graph.f_pointwise if strong_form else graph.F
 
         bc_mask = graph.is_bc
         # Relacion q/u:     div(q) = div(-grad u) = -Laplacian(u)
